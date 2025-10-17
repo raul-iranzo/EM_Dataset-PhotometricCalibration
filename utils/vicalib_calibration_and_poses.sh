@@ -26,6 +26,30 @@ case $PATTERN_PRESET in
         GRID_LARGE_RAD='0.0015826640259600002'
         GRID_SPACING='0.0052797'
         ;;
+    "times_06")
+    	GRID_SMALL_RAD='0.0006353105238960'
+        GRID_LARGE_RAD='0.0009495984155760'
+        GRID_SPACING='0.0031678224002667'
+        echo "Using times_06_pattern.xml"
+        ;;
+    "times_04")
+        GRID_SMALL_RAD='0.0004235403492640'
+        GRID_LARGE_RAD='0.0006330656103840'
+        GRID_SPACING='0.0021118816001778'
+    	echo "Using times_04_pattern.xml"
+        ;;
+    "times_02")
+        GRID_SMALL_RAD='0.0002117701746320'
+        GRID_LARGE_RAD='0.0003165328051920'
+        GRID_SPACING='0.0010559408000889'
+    	echo "Using times_02_pattern.xml"
+        ;;
+    "times_01")
+        GRID_SMALL_RAD='0.0001058850873160'
+        GRID_LARGE_RAD='0.0001582664025960'
+        GRID_SPACING='0.0005279704000444'
+    	echo "Using times_01_pattern.xml"
+        ;;
     *)
         echo -e "${ERROR} Invalid pattern preset '${PATTERN_PRESET}'"
         exit 1

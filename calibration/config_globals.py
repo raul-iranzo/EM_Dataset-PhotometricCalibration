@@ -6,6 +6,8 @@
 #   - SINGLE_NSLS
 #   - SINGLE_NSLS2D
 #   - TRI_NFSLS
+#   - TRI_NFZSLS
+#   - TRI_NFZESLS
 #
 # Available generic models:
 #   - PLS: point light source
@@ -15,7 +17,8 @@
 #   - N: normalized radiance (emission at x is fixed)
 #   - F: fixed position (known pose wrt. camera or aligned to optical center)
 #   - Z: principal direction fixed to camera forward (SLS only)
-OPTIMIZE_LIGHT = 'SINGLE_NSLS'
+#   - E: light parameters are the same for all lights
+OPTIMIZE_LIGHT = 'TRI_NFZESLS'
 
 # Bidirectional Reflectance Distribution Function (BRDF) is estimated for the
 # whole calibration pattern bet but is not a useful parameter.
@@ -30,7 +33,7 @@ OPTIMIZE_BRDF = 'DIFFUSE'
 #   - COSINE: cos(θ)^d, where θ = ∠(-ω_i, z) and d ∈ [1, ∞]
 #   - LUT: non-parametric function θ → [0, 1]
 #   - NONE: constant vignetting = 1.0
-OPTIMIZE_VIGNETTING = 'NONE'
+OPTIMIZE_VIGNETTING = 'COSINE'
 
 # Auto-gain is estimated for each independet frame.
 # Available modes:

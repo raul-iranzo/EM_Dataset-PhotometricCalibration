@@ -88,18 +88,19 @@ elif OPTIMIZE_LIGHT == 'SINGLE_NSLS':
     sources = [lights.NormalizedSpotLightSource()]
 elif OPTIMIZE_LIGHT == 'SINGLE_NSLS2D':
     sources = [lights.NormalizedSpotLightSource2D()]
-elif OPTIMIZE_LIGHT == 'TRI_NFSLS':
+elif OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS']:
     z = np.array([[0], [0], [1], [0]])
+    mu_value = 0.0  # Common for all lights
     sources = [
-        lights.NormalizedFixedSpotLightSource(mu=1.0,
+        lights.NormalizedZFixedSpotLightSource(mu=mu_value,
                                               P=ENDOSCOPE_LIGHT_CENTERS[0],
                                               D=np.copy(z)),
-        lights.FixedSpotLightSource(sigma=1.0,
-                                    mu=1.0,
+        lights.NormalizedZFixedSpotLightSource(
+                                    mu=mu_value,
                                     P=ENDOSCOPE_LIGHT_CENTERS[1],
                                     D=np.copy(z)),
-        lights.FixedSpotLightSource(sigma=1.0,
-                                    mu=1.0,
+        lights.NormalizedZFixedSpotLightSource(
+                                    mu=mu_value,
                                     P=ENDOSCOPE_LIGHT_CENTERS[2],
                                     D=np.copy(z))]
     # DEBUG: plot all light sources in the endoscope
@@ -126,6 +127,7 @@ fig, axs = debug.getSquaredGrid(n_frames, 'I')
 # frames = []
 x_valid_list = []
 x_w_list = []
+x_uv_list = []
 T_wc_list = []
 I_gt_list = []
 gain_list = []
@@ -198,6 +200,7 @@ for i in tqdm(range(n_frames), 'Loading data'):
     # frames.append(img_gray)
     x_valid_list.append(x_valid)
     x_w_list.append(x_w)
+    x_uv_list.append(x_uv)
     T_wc_list.append(T_wc)
     I_gt_list.append(I_gt)
     gain_list.append(gain)
@@ -257,6 +260,7 @@ plt.pause(5)
 
 op_init = optimize.pack_op(renderer, gain_list_train)
 print(f'[INFO] Optimizing {len(op_init)} parameters...')
+print(f'[INFO] Optimizing {len(gain_list_train)} gains...')
 
 residuals_train = optimize.fun(op_init, x_w_list_train, x_valid_list_train,
                                T_wc_list_train, T_wp, I_gt_list_train,
@@ -307,7 +311,7 @@ optimize.unpack_op(op_final, renderer, gain_list_train)
 print('camera.vignetting:', renderer.camera.vignetting.params)
 print('pattern.brdf:', renderer.pattern.brdf.params)
 for i in range(len(renderer.sources)):
-    print(f'sources[{i}].[sigma, mu, Pxyz, D_th-phi]:',
+    print(f'sources[{i}].[mu]:',    # TODO Poner automático
           renderer.sources[i].params)
 print('gain:', gain_list_train)
 
@@ -322,7 +326,7 @@ print('Final Train MAE:', train_mae)
 print('Final Train Median Abs. Error:', train_median)
 print('Final Train RMSE:', train_rmse)
 
-if OPTIMIZE_LIGHT == 'TRI_NFSLS':
+if OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS']:
     fig, axs = plt.subplots(1, 1)
     axs.set_title('Final')
     debugSourcesOnEndoscope(axs, renderer.sources)
@@ -345,12 +349,14 @@ plt.hist(residuals_test * 255, bins=range(-amax, amax), density=True,
          edgecolor='steelblue', linewidth=1, color='powderblue')
 debug.plotGaussian(plt.gca(), residuals_test * 255)
 
-fig1, axs1 = debug.getSquaredGrid(n_frames_test, title='I_hat (test)')
-fig2, axs2 = debug.getSquaredGrid(n_frames_test, title='I_hat - I (test)')
+fig1, axs1 = debug.getSquaredGrid(n_frames, title='I_hat (final)')
+fig2, axs2 = debug.getSquaredGrid(n_frames, title='I_hat - I (final)')
 
 error_hist = []
-for j, i in enumerate(tqdm(test_idx, 'Rendering')):
-    render, valid = renderer.full(T_wc_list[i], T_wp, gain_list_test[j])
+gain_list_hat = np.concatenate([gain_list_test, gain_list_train])
+for j, i in enumerate(tqdm(test_idx + train_idx, 'Rendering')):
+
+    render, valid = renderer.full(T_wc_list[i], T_wp, gain_list_hat[j])
     axs1[j].imshow(render)
     axs1[j].axis('off')
     axs1[j].set_title(f'{frame_ids[i]:06d}',
@@ -374,6 +380,12 @@ for j, i in enumerate(tqdm(test_idx, 'Rendering')):
                       fontdict={
                           'fontsize': 'small',
                           'color': 'red' if i in test_idx else 'black'})
+    x_uv = x_uv_list[i]
+    x_valid = x_valid_list[i]
+    I_gt = I_gt_list[i]
+    axs2[j].scatter(x_uv[0, x_valid], x_uv[1, x_valid],
+                s=[20 if v < 1e-6 else 0.05 for v in I_gt],
+                c=['r' if v < 1e-6 else 'g' for v in I_gt])
     plt.colorbar(error_map, ax=axs2[j])
 fig1.tight_layout()
 

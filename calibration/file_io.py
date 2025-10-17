@@ -56,7 +56,7 @@ def save_config(file_name: str, cg: Dict[str, str]):
 
 
 def save_calib_xml(file_name: str, renderer: renderers.Basic):
-    assert OPTIMIZE_LIGHT in ['SINGLE_NSLS', 'SINGLE_NFSLS', 'SINGLE_NZFSLS', 'SINGLE_NSLS2D'] and \
+    assert OPTIMIZE_LIGHT in ['SINGLE_NSLS', 'SINGLE_NFSLS', 'SINGLE_NZFSLS', 'SINGLE_NSLS2D', 'TRI_NFSLS', 'TRI_NFZESLS', "TRI_NFZSLS"] and \
         OPTIMIZE_VIGNETTING in ['NONE', 'COSINE'], \
         'XML export invalid for current configuration.'
 
@@ -79,33 +79,35 @@ def save_calib_xml(file_name: str, renderer: renderers.Basic):
         vignetting = ET.SubElement(camera_model, 'vignetting')
         vignetting.text = f' [ {renderer.camera.vignetting.k:.6f} ] '
 
-    light = ET.SubElement(rig, 'light')
-    light_model = ET.SubElement(light, 'light_model')
-    light_model.set('name', '')
-    light_model.set('index', '0')
-    light_model.set('serialno', '0')
-    light_model.set('type', 'sls')
-    light_model.set('version', '1.0')
-    light_model.append(ET.Comment(
-        ' Spot Light Source (SLS) model as in [Modrzejewski et al. (2020)] '))
+    # Loop through the light sources and add each to the XML
+    for i, source in enumerate(renderer.sources):
+        light = ET.SubElement(rig, 'light')
+        light_model = ET.SubElement(light, 'light_model')
+        light_model.set('name', '')
+        light_model.set('index', str(i))  # Set index to be the current light's index
+        light_model.set('serialno', '0')
+        light_model.set('type', 'sls')
+        light_model.set('version', '1.0')
+        light_model.append(ET.Comment(
+            ' Spot Light Source (SLS) model as in [Modrzejewski et al. (2020)] '))
 
-    light_model.append(ET.Comment(' main intensity value '))
-    sigma = ET.SubElement(light_model, 'sigma')
-    sigma.text = f' {renderer.sources[0].sigma:.6f} '
+        light_model.append(ET.Comment(' main intensity value '))
+        sigma = ET.SubElement(light_model, 'sigma')
+        sigma.text = f' {source.sigma:.6f} '
 
-    light_model.append(ET.Comment(' spread factor '))
-    sigma = ET.SubElement(light_model, 'mu')
-    sigma.text = f' {renderer.sources[0].mu:.6f} '
+        light_model.append(ET.Comment(' spread factor '))
+        mu = ET.SubElement(light_model, 'mu')
+        mu.text = f' {source.mu:.6f} '
 
-    light_model.append(ET.Comment(
-        ' light centre in camera reference (3D point) '))
-    P = ET.SubElement(light_model, 'P')
-    P.text = f' {utils.mat2str(renderer.sources[0].P[0:3, :], 6)} '
+        light_model.append(ET.Comment(
+            ' light centre in camera reference (3D point) '))
+        P = ET.SubElement(light_model, 'P')
+        P.text = f' {utils.mat2str(source.P[0:3, :], 10)} '
 
-    light_model.append(ET.Comment(
-        ' principal direction in camera reference (unit 3D vector) '))
-    D = ET.SubElement(light_model, 'D')
-    D.text = f' {utils.mat2str(renderer.sources[0].D[0:3, :], 6)} '
+        light_model.append(ET.Comment(
+            ' principal direction in camera reference (unit 3D vector) '))
+        D = ET.SubElement(light_model, 'D')
+        D.text = f' {utils.mat2str(source.D[0:3, :], 6)} '
 
     # create a new XML file with the results
     xmlstr = minidom.parseString(ET.tostring(

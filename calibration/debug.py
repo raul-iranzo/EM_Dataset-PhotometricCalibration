@@ -252,6 +252,7 @@ def plotPatternSample(pattern, **kwargs):
     ''' Plot the sample points on the pattern '''
     plt.figure()
     m2px = pattern._mask.shape[1] / pattern._size[0]
+    #breakpoint()
     import patterns
     if type(pattern) is patterns.Vicalib:
         # Add the patch to the Axes
@@ -287,8 +288,8 @@ def sourcesOnEndoscope(axs: plt.Axes,
     m2px = diameter_px / diameter_m
     axs.plot(center_px[0] * px2uv, center_px[1] * px2uv, 'ks', label='camera')
     for i, source in enumerate(sources):
-        axs.plot((center_px[0] - source.d_xy[0] * m2px) * px2uv,
-                 (center_px[1] + source.d_xy[1] * m2px) * px2uv, '.',
+        axs.plot((center_px[0] - source.P[0] * m2px) * px2uv,
+                 (center_px[1] + source.P[1] * m2px) * px2uv, '.',
                  label=f'light{i}')
 
 
