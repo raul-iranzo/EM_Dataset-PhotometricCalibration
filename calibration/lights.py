@@ -13,12 +13,23 @@ class Base(utils.Optimizable):
                T_wc: NDArray[(4, 1), float],
                x_w: NDArray[(4, Any), float]) \
             -> Tuple[NDArray[(3, Any), float], NDArray[(4, Any), float]]:
-        ''' Sample light _comming_ to a point in space'''
+        ''' Sample light _comming_ to a point in space
+        - Normalized outgoing direction: L(x, P) = (x - P) / ||x - P||
+        - Inverse square law: S(x, P) = 1/d², where d = ||x - P||
+        '''
         assert T_wc.shape == (4, 4), \
             f'`T_wc` attached camera pose must be (4, 4), but {T_wc.shape} encountered.'
         assert x_w.shape[0] == 4, '`x_w` must be homogeneous coordinates'
         assert np.allclose(x_w[3, :], 1), '`x_w` must be point coordinates'
-        pass
+        
+        T_cw = np.linalg.inv(T_wc)
+        x_c = T_cw @ x_w
+
+        vP2x = x_c - self.P
+        d = np.linalg.norm(vP2x, axis=0)[np.newaxis, :]
+        L_x = vP2x / d
+        S_x = 1 / (d * d)
+        return L_x, S_x
 
 ###############################################################################
 ##                              COMPLETE CLASS                               ##
@@ -29,7 +40,7 @@ class SpotLightSource(Base):
     '''Spot Light Source (SLS). [Modrzejewski20]
     - Main intensity value: σ_o
     - Light center: P (coordinates XYZ)
-    - Normalized principal direction: L(x, P) = (x - P) / ||x - P||
+    - Normalized outgoing direction: L(x, P) = (x - P) / ||x - P||
     - Inverse square law: S(x, P) = 1/d², where d = ||x - P||
     - Directional D spread function: R(μ, D, x, P) = e^(-μ(1 - D·L))
     - σ_SLS(x, P) = σ_o · R(μ, D, x, P) · S(x, P) · L(x, P)
@@ -53,20 +64,18 @@ class SpotLightSource(Base):
         self.P = P
         self.D = D
 
+    def R_x(self, cosine: NDArray[(1, Any), float]) -> NDArray[(1, Any), float]:
+        ''' Directional spread function R(μ, D, x, P) = e^(-μ(1 - D·L)) '''
+        R_x = np.exp(-self.mu * (1 - cosine))
+        return R_x
+
     def sample(self,
                T_wc: NDArray[(4, 1), float],
                x_w: NDArray[(4, Any), float]) \
             -> Tuple[NDArray[(3, Any), float], NDArray[(4, Any), float]]:
-        super().sample(T_wc, x_w)
-
-        T_cw = np.linalg.inv(T_wc)
-        x_c = T_cw @ x_w
-
-        vP2x = x_c - self.P
-        d = np.linalg.norm(vP2x, axis=0)[np.newaxis, :]
-        L_x = vP2x / d
-        S_x = 1 / (d * d)
-        R_x = np.exp(-self.mu * (1 - self.D.T @ L_x))
+        L_x, S_x = super().sample(T_wc, x_w)
+        cosine = np.dot(self.D.T, L_x)
+        R_x = self.R_x(cosine)
 
         sigma_SLS = self.sigma * R_x * S_x * L_x
 
@@ -349,3 +358,114 @@ class NormalizedFixedPointLightSource(SpotLightSource):
 
     def _get_upper_bound(self) -> NDArray:
         return np.empty(0)
+
+class NormalizedZFixedPoly(SpotLightSource):
+    ''' NZF with polynomial light decay '''
+
+    degree: int  # degree of the polynomial
+    coeffs: NDArray[(Any,), float]  # spread factor
+
+    def __init__(self,
+                 degree: int = 2, 
+                 sigma: float = 1.0,
+                 P: NDArray[(4, 1), float] = np.array(
+                     [[0.], [0.], [0.], [1.]]),
+                 D: NDArray[(4, 1), float] = np.array(
+                     [[0.], [0.], [1.], [0.]])) -> None:
+        super().__init__(sigma, 0, P, D)
+        assert degree >= 1, 'Polynomial degree must be at least 1'
+        self.degree = degree
+        self.coeffs = np.zeros(((degree - 1) * 2 + 2,))  # odd terms and one constant
+        self.coeffs[-1] = 1.0  # default cosine falloff
+
+    def R_x(self, cosine: NDArray[(1, Any), float]) -> NDArray[(1, Any), float]:
+        ''' Directional spread function R(μ, D, x, P) = Σ (μ_i · (1 - D·L)^i) '''
+        angle = np.arccos(cosine)
+        R_x = np.polyval(self.coeffs, angle)
+        return R_x
+
+    def _get_params(self) -> List:
+        params = self.coeffs[:-1:2].tolist()
+        return params
+
+    def _set_params(self, a: List) -> None:
+        self.coeffs[:-1:2] = np.array(a)
+
+    def _get_lower_bound(self) -> NDArray:
+        return np.array([-np.inf] * (self.degree))  # mu
+
+    def _get_upper_bound(self) -> NDArray:
+        return np.array([np.inf] * (self.degree))  # mu
+    
+class NormalizedZFixedCosine(SpotLightSource):
+    ''' NZF with cosine light decay '''
+
+    exponent: float  # exponent of the cosine decay
+    amplitude: float  # amplitude of the cosine decay
+
+    def __init__(self,
+                 exponent: float = 1.0,
+                 amplitude: float = 1.0,
+                 sigma: float = 1.0,
+                 P: NDArray[(4, 1), float] = np.array(
+                     [[0.], [0.], [0.], [1.]]),
+                 D: NDArray[(4, 1), float] = np.array(
+                     [[0.], [0.], [1.], [0.]])) -> None:
+        super().__init__(sigma, 0, P, D)
+        self.exponent = exponent
+        self.amplitude = amplitude
+
+    def R_x(self, cosine: NDArray[(1, Any), float]) -> NDArray[(1, Any), float]:
+        ''' Directional spread function R(μ, D, x, P) = cos(a * θ)^n '''
+        angle = np.arccos(cosine)
+        R_x = np.clip(np.cos(self.amplitude * angle), 0, 1) ** self.exponent
+        if np.any(np.isnan(R_x)):
+            breakpoint()
+        return R_x
+
+    def _get_params(self) -> List:
+        return [self.exponent, self.amplitude]
+
+    def _set_params(self, a: List) -> None:
+        self.exponent = a[0]
+        self.amplitude = a[1]
+
+    def _get_lower_bound(self) -> NDArray:
+        return np.array([0, 0])
+
+    def _get_upper_bound(self) -> NDArray:
+        return np.array([np.inf, np.inf])
+
+class NormalizedZFixedLUT(SpotLightSource):
+
+    _angles: NDArray[(Any), float]
+    _values: NDArray[(Any, float)]
+
+    def __init__(self,
+                 steps: int = 10, 
+                 sigma: float = 1.0,
+                 P: NDArray[(4, 1), float] = np.array(
+                     [[0.], [0.], [0.], [1.]]),
+                 D: NDArray[(4, 1), float] = np.array(
+                     [[0.], [0.], [1.], [0.]])) -> None:
+        super().__init__(sigma, 0, P, D)
+        assert steps >= 1, 'LUT steps must be at least 1'
+        self._angles = np.linspace(0, np.radians(70), steps)
+        self._values = np.cos(self._angles)
+
+    def _get_params(self) -> List:
+        return self._values.tolist()[1:]
+
+    def _set_params(self, a: List) -> None:
+        self._values[1:] = np.array(a)
+
+    def _get_lower_bound(self) -> NDArray:
+        return np.repeat(0, self.num_params)
+
+    def _get_upper_bound(self) -> NDArray:
+        return np.repeat(1, self.num_params)
+
+    def R_x(self, cosine: NDArray[(1, Any), float]) -> NDArray[(1, Any), float]:
+        angle = np.arccos(cosine)
+        value = np.interp(angle, self._angles, self._values)
+        return value

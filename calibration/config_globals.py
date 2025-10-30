@@ -8,17 +8,24 @@
 #   - TRI_NFSLS
 #   - TRI_NFZSLS
 #   - TRI_NFZESLS
+#   - TRI_NFZEPOLY
+#   - TRI_NFZELUT
+#   - TRI_NFZECOS
 #
 # Available generic models:
 #   - PLS: point light source
 #   - SLS: spot light source (with spread function)
+#   - POLY: polynomial spot light source (with polynomial spread function)
+#   - LUT: non-parametric light source (with LUT spread function)
+#   - COS: cosine-based spot light source (with cosine-based spread function)
 #
-# Availabel flags:
+# Available flags:
 #   - N: normalized radiance (emission at x is fixed)
 #   - F: fixed position (known pose wrt. camera or aligned to optical center)
 #   - Z: principal direction fixed to camera forward (SLS only)
 #   - E: light parameters are the same for all lights
-OPTIMIZE_LIGHT = 'TRI_NFZESLS'
+OPTIMIZE_LIGHT = 'TRI_NFZECOS'
+LIGHT_LUT_RESOLUTION = 20  # only for LUT-based light sources (in degrees)
 
 # Bidirectional Reflectance Distribution Function (BRDF) is estimated for the
 # whole calibration pattern bet but is not a useful parameter.

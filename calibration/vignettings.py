@@ -66,7 +66,7 @@ class Cosine(Base):
         self.k = a[0]
 
     def _get_lower_bound(self) -> NDArray:
-        return np.array([0.0])  # k
+        return np.array([-np.inf])  # k
 
     def _get_upper_bound(self) -> NDArray:
         return np.array([np.inf])  # k

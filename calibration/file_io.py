@@ -56,7 +56,7 @@ def save_config(file_name: str, cg: Dict[str, str]):
 
 
 def save_calib_xml(file_name: str, renderer: renderers.Basic):
-    assert OPTIMIZE_LIGHT in ['SINGLE_NSLS', 'SINGLE_NFSLS', 'SINGLE_NZFSLS', 'SINGLE_NSLS2D', 'TRI_NFSLS', 'TRI_NFZESLS', "TRI_NFZSLS"] and \
+    assert OPTIMIZE_LIGHT in ['SINGLE_NSLS', 'SINGLE_NFSLS', 'SINGLE_NZFSLS', 'SINGLE_NSLS2D', 'TRI_NFSLS', 'TRI_NFZESLS', 'TRI_NFZSLS', 'TRI_NFZEPOLY', 'TRI_NFZELUT', 'TRI_NFZECOS'] and \
         OPTIMIZE_VIGNETTING in ['NONE', 'COSINE'], \
         'XML export invalid for current configuration.'
 
@@ -95,9 +95,14 @@ def save_calib_xml(file_name: str, renderer: renderers.Basic):
         sigma = ET.SubElement(light_model, 'sigma')
         sigma.text = f' {source.sigma:.6f} '
 
-        light_model.append(ET.Comment(' spread factor '))
-        mu = ET.SubElement(light_model, 'mu')
-        mu.text = f' {source.mu:.6f} '
+        if OPTIMIZE_LIGHT in ['TRI_NFZEPOLY', 'TRI_NFZELUT', 'TRI_NFZECOS']:
+            light_model.append(ET.Comment(' spread params '))
+            params = ET.SubElement(light_model, 'params')
+            params.text = f' [{",".join(map(str, source.params))}] '
+        else:
+            light_model.append(ET.Comment(' spread factor '))
+            mu = ET.SubElement(light_model, 'mu')
+            mu.text = f' {source.mu:.6f} '
 
         light_model.append(ET.Comment(
             ' light centre in camera reference (3D point) '))

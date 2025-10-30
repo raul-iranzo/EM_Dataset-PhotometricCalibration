@@ -154,7 +154,7 @@ def showBrdfVignettingGainSpread(op_init, op_final, renderer: renderers.Basic, g
             else:
                 raise NotImplementedError
     optimize.unpack_op(op_backup, renderer, gain_list)
-    axs[3].legend()
+    # axs[3].legend()
 
 
 def plotBrdfDiffuse(ax, brdf: brdfs.Diffuse, **kwargs):
@@ -212,7 +212,8 @@ def plotVignettingLUT(ax, vignetting: vignettings.LUT, angles, style='-', color=
 
 
 def plotSpotLightSource(ax, source, i, angles, style='-'):
-    values = np.exp(-source.mu * (1 - np.cos(angles)))
+    cosine = np.cos(angles)
+    values = source.R_x(cosine)
     ax.plot(np.degrees(angles), values, style,
             label=f'light {i} ($\\mu = {source.mu:.2f}$)')
 

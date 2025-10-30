@@ -17,7 +17,7 @@ import patterns
 from renderers import Basic
 import utils
 import config_globals
-from config_globals import FRAME_COUNT, RESULTS_NAME, OPTIMIZE_LIGHT, \
+from config_globals import FRAME_COUNT, LIGHT_LUT_RESOLUTION, RESULTS_NAME, OPTIMIZE_LIGHT, \
     SAMPLING_STRATEGY, SAMPLING_ARGUMENTS, SIGMA_EST, IMREAD_GAUSSIANBLUR_KSIZE, \
     ENDOSCOPE_DISTAL_END_IMAGE, ENDOSCOPE_DISTAL_END_IMAGE_CENTER, \
     ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M, ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX, \
@@ -88,21 +88,21 @@ elif OPTIMIZE_LIGHT == 'SINGLE_NSLS':
     sources = [lights.NormalizedSpotLightSource()]
 elif OPTIMIZE_LIGHT == 'SINGLE_NSLS2D':
     sources = [lights.NormalizedSpotLightSource2D()]
-elif OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS']:
+elif OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS', 'TRI_NFZEPOLY', 'TRI_NFZELUT', 'TRI_NFZECOS']:
+    def get_model(*args, **kwargs):
+        if OPTIMIZE_LIGHT == 'TRI_NFZEPOLY':
+            return lights.NormalizedZFixedPoly(degree=4, *args, **kwargs)
+        elif OPTIMIZE_LIGHT == 'TRI_NFZELUT':
+            return lights.NormalizedZFixedLUT(steps=LIGHT_LUT_RESOLUTION, *args, **kwargs)
+        elif OPTIMIZE_LIGHT == 'TRI_NFZECOS':
+            return lights.NormalizedZFixedCosine(*args, **kwargs)
+        else:
+            return lights.NormalizedZFixedSpotLightSource(mu=0.0, *args, **kwargs)
     z = np.array([[0], [0], [1], [0]])
-    mu_value = 0.0  # Common for all lights
     sources = [
-        lights.NormalizedZFixedSpotLightSource(mu=mu_value,
-                                              P=ENDOSCOPE_LIGHT_CENTERS[0],
-                                              D=np.copy(z)),
-        lights.NormalizedZFixedSpotLightSource(
-                                    mu=mu_value,
-                                    P=ENDOSCOPE_LIGHT_CENTERS[1],
-                                    D=np.copy(z)),
-        lights.NormalizedZFixedSpotLightSource(
-                                    mu=mu_value,
-                                    P=ENDOSCOPE_LIGHT_CENTERS[2],
-                                    D=np.copy(z))]
+        get_model(P=ENDOSCOPE_LIGHT_CENTERS[0], D=np.copy(z)),
+        get_model(P=ENDOSCOPE_LIGHT_CENTERS[1], D=np.copy(z)),
+        get_model(P=ENDOSCOPE_LIGHT_CENTERS[2], D=np.copy(z))]
     # DEBUG: plot all light sources in the endoscope
     fig, axs = plt.subplots(1, 1)
     axs.set_title('Init')
@@ -352,6 +352,20 @@ debug.plotGaussian(plt.gca(), residuals_test * 255)
 fig1, axs1 = debug.getSquaredGrid(n_frames, title='I_hat (final)')
 fig2, axs2 = debug.getSquaredGrid(n_frames, title='I_hat - I (final)')
 
+def mirror_point_plane(P, n, d):
+    '''
+    Get the reflection point of a ray in a plane in 3D.
+
+    @param P: source point
+    @param n: plane normal
+    @param d: plane distance to origin
+    @return: reflection point
+    '''
+    n = n / np.linalg.norm(n)
+    t = (np.dot(P.T, n) - d) / np.dot(n.T, n)
+    Q = P - 2 * t * n
+    return Q
+
 error_hist = []
 gain_list_hat = np.concatenate([gain_list_test, gain_list_train])
 for j, i in enumerate(tqdm(test_idx + train_idx, 'Rendering')):
@@ -370,11 +384,21 @@ for j, i in enumerate(tqdm(test_idx + train_idx, 'Rendering')):
     error_map = axs2[j].imshow(error, vmin=-25, vmax=25, cmap='seismic')
     T_wc = T_wc_list[i]
     T_cw = np.linalg.inv(T_wc)
-    x2 = T_wc[:, 3:4]
-    x2[2, 0] = 0  # perpendicular camera to plane
-    uv2, valid = renderer.camera.project(T_cw @ x2)
+    T_wp = renderer.pattern.T_wp
+    T_pw = np.linalg.inv(T_wp)
+    C = T_pw @ T_wc @ np.array([[0], [0], [0], [1]])
+    C_mirror = mirror_point_plane(C[0:3, 0], renderer.pattern.n[0:3, 0], renderer.pattern.d)
+    C_mirror_h = np.array([[C_mirror[0]], [C_mirror[1]], [C_mirror[2]], [1]])
+    uv_c, valid = renderer.camera.project(T_cw @ T_wp @ C_mirror_h)
     if valid.all():
-        axs2[j].plot(uv2[0, 0], uv2[1, 0], 'kx')
+        axs2[j].plot(uv_c[0, 0], uv_c[1, 0], 'kx')
+    for source in renderer.sources:
+        S_i = T_pw @ T_wc @ source.P
+        S_i_mirror = mirror_point_plane(S_i[0:3, 0], renderer.pattern.n[0:3, 0], renderer.pattern.d)
+        S_i_mirror_h = np.array([[S_i_mirror[0]], [S_i_mirror[1]], [S_i_mirror[2]], [1]])
+        uv_s, valid = renderer.camera.project(T_cw @ T_wp @ S_i_mirror_h)
+        if valid.all():
+            axs2[j].plot(uv_s[0, 0], uv_s[1, 0], '.')
     axs2[j].axis('off')
     axs2[j].set_title(f'{frame_ids[i]:06d}',
                       fontdict={
