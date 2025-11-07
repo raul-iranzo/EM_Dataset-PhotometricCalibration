@@ -46,7 +46,8 @@ OPTIMIZE_VIGNETTING = 'COSINE'
 # Available modes:
 #   - ALL: optimize value for all existing frames
 #   - EXCLUDE_FIRST: fix the value of the first frame to 1.0
-OPTIMIZE_GAIN = 'ALL'
+#   - WITH_BIAS: optimize gain with a bias: I = gain * I_raw + bias
+OPTIMIZE_GAIN = 'WITH_BIAS'
 
 # Points used for optimization
 # Available modes:

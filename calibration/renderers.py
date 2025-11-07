@@ -5,7 +5,7 @@ from patterns import Vicalib
 import brdfs
 import lights
 
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Union
 from nptyping import NDArray
 
 
@@ -27,7 +27,7 @@ class Basic:
             x_w: NDArray[(4, Any), float],
             T_wc: NDArray[(4, 4), float],
             T_wp: NDArray[(4, 4), float],
-            gain: float) \
+            gain: Union[float, List[float]]) \
             -> Tuple[NDArray[(3, Any), float], NDArray[(Any,), bool]]:
         ''' Render image at world points '''
         T_pw = np.linalg.inv(T_wp)
@@ -59,7 +59,12 @@ class Basic:
         vignetting[:, valid_uv], valid_vignetting = \
             self.camera.vignetting.sample(uv[:, valid_uv])
 
-        bgr = self.camera.response(L_o * vignetting * gain)
+        if isinstance(gain, list) or isinstance(gain, np.ndarray):
+            bias = gain[1]
+            gain = gain[0]
+        else:
+            bias = 0.0
+        bgr = self.camera.response(L_o * vignetting * gain + bias)
         valid = np.logical_and(valid_albedo, valid_uv)
         valid[valid_uv] = np.logical_and(valid[valid_uv], valid_vignetting)
 
@@ -69,7 +74,7 @@ class Basic:
            uv: NDArray[(3, Any), float],
            T_wc: NDArray[(4, 4), float],
            T_wp: NDArray[(4, 4), float],
-           gain: float) \
+           gain: Union[float, List[float]]) \
             -> Tuple[NDArray[(3, Any), float], NDArray[(Any,), bool]]:
         ''' Render image at pixels '''
         d_c, d_c_valid = self.camera.unproject(uv)
@@ -90,7 +95,7 @@ class Basic:
     def full(self,
              T_wc: NDArray[(4, 4), float],
              T_wp: NDArray[(4, 4), float],
-             gain: float) \
+             gain: Union[float, List[float]]) \
             -> Tuple[NDArray[(Any, Any, 3), float],
                      NDArray[(Any, Any, 1), bool]]:
         ''' Render full image '''

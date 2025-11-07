@@ -25,6 +25,8 @@ def pack_op(renderer: renderers.Basic,
         op += [gain[:]]
     elif OPTIMIZE_GAIN == 'EXCLUDE_FIRST':
         op += [gain[1:]]
+    elif OPTIMIZE_GAIN == 'WITH_BIAS':
+        op += [np.array(gain).flatten().tolist()]  # [gain0, bias0, gain1, bias1, ...]
     else:
         raise ValueError(f'Invalid OPTIMIZE_GAIN: \'{OPTIMIZE_GAIN}\'')
     
@@ -60,6 +62,8 @@ def unpack_op(op: NDArray[(Any, ), float],
         gain[:] = op[inf:]
     elif OPTIMIZE_GAIN == 'EXCLUDE_FIRST':
         gain[1:] = op[inf:]
+    elif OPTIMIZE_GAIN == 'WITH_BIAS':
+        gain[:] = np.array(op[inf:]).reshape(-1, 2).tolist()  # [[gain0, bias0], [gain1, bias1], ...]
     else:
         raise ValueError(f'Invalid OPTIMIZE_GAIN: \'{OPTIMIZE_GAIN}\'')
 
@@ -86,10 +90,20 @@ def bounds(renderer: renderers.Basic,
             upper_bound = np.concatenate(
                 [upper_bound, renderer.sources[i].upper_bound])
             
-    lower_bound = np.concatenate([lower_bound, np.repeat(
-        1e-6, len(gain) + (0 if OPTIMIZE_GAIN == 'ALL' else -1))])
-    upper_bound = np.concatenate([upper_bound, np.repeat(
-        np.inf, len(gain) + (0 if OPTIMIZE_GAIN == 'ALL' else -1))])
+    if OPTIMIZE_GAIN == 'ALL':
+        gain_lower_bound = np.repeat(1e-6, len(gain))
+        gain_upper_bound = np.repeat(np.inf, len(gain))
+    elif OPTIMIZE_GAIN == 'EXCLUDE_FIRST':
+        gain_lower_bound = np.repeat(1e-6, len(gain) - 1)
+        gain_upper_bound = np.repeat(np.inf, len(gain) - 1)
+    elif OPTIMIZE_GAIN == 'WITH_BIAS':
+        gain_lower_bound = [1e-6, -np.inf] * len(gain)
+        gain_upper_bound = [np.inf, np.inf] * len(gain)
+    else:
+        raise ValueError(f'Invalid OPTIMIZE_GAIN: \'{OPTIMIZE_GAIN}\'')
+    lower_bound = np.concatenate([lower_bound, gain_lower_bound])
+    upper_bound = np.concatenate([upper_bound, gain_upper_bound])
+
     return (lower_bound, upper_bound)
 
 
@@ -98,13 +112,29 @@ def jac_sparsity(I_gt: List[float],
     n_frames = len(I_gt)
     m = sum(len(I_gt) for I_gt in I_gt)  # num. residuals
     n = len(op)  # num. variables
+
+    if OPTIMIZE_GAIN == 'ALL':
+        m_ = 0
+        i_= 0
+        n_ = 1
+    elif OPTIMIZE_GAIN == 'EXCLUDE_FIRST':
+        m_ = len(I_gt[0])
+        i_= 1
+        n_ = 1
+    elif OPTIMIZE_GAIN == 'WITH_BIAS':
+        m_ = 0
+        i_= 0
+        n_ = 2
+    else:
+        raise ValueError(f'Invalid OPTIMIZE_GAIN: \'{OPTIMIZE_GAIN}\'')
+    
     from scipy.sparse import lil_matrix
     sparsity = lil_matrix((m, n), dtype=int)
-    sparsity[:, 0:n-n_frames] = 1
-    m_ = 0 if OPTIMIZE_GAIN == 'ALL' else len(I_gt[0])
-    for i in range(0, n_frames):
+    sparsity[:, 0:n-(n_frames*n_)] = 1
+    for i in range(i_, n_frames):
         num_residuals_in_frame = len(I_gt[i])
-        sparsity[m_:m_+num_residuals_in_frame, -n_frames + i] = 1
+        for j in range(n_):
+            sparsity[m_:m_+num_residuals_in_frame, (-n_frames + i)*n_ + j] = 1
         m_ += num_residuals_in_frame
     return sparsity
 
@@ -165,12 +195,19 @@ def fun_debug(op: NDArray[(Any, ), float],
 
 def pack_op_test(_: renderers.Basic,
                  gain: List[float]):
-    return gain
+    if OPTIMIZE_GAIN == 'WITH_BIAS':
+        op = np.array(gain).flatten().tolist()  # [gain0, bias0, gain1, bias1, ...]
+    else:
+        op = gain
+    return op
 
 
 def unpack_op_test(op, _: renderers.Basic,
                    gain: List[float]):
-    gain[:] = op
+    if OPTIMIZE_GAIN == 'WITH_BIAS':
+        gain[:] = np.array(op).reshape(-1, 2).tolist()  # [[gain0, bias0], [gain1, bias1], ...]
+    else:
+        gain[:] = op
 
 
 def eval_test(x_w: List[NDArray[(4, Any), float]],

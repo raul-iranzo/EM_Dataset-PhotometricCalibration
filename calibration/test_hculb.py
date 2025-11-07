@@ -17,7 +17,7 @@ import patterns
 from renderers import Basic
 import utils
 import config_globals
-from config_globals import FRAME_COUNT, LIGHT_LUT_RESOLUTION, RESULTS_NAME, OPTIMIZE_LIGHT, \
+from config_globals import FRAME_COUNT, LIGHT_LUT_RESOLUTION, OPTIMIZE_GAIN, RESULTS_NAME, OPTIMIZE_LIGHT, \
     SAMPLING_STRATEGY, SAMPLING_ARGUMENTS, SIGMA_EST, IMREAD_GAUSSIANBLUR_KSIZE, \
     ENDOSCOPE_DISTAL_END_IMAGE, ENDOSCOPE_DISTAL_END_IMAGE_CENTER, \
     ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M, ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX, \
@@ -203,7 +203,10 @@ for i in tqdm(range(n_frames), 'Loading data'):
     x_uv_list.append(x_uv)
     T_wc_list.append(T_wc)
     I_gt_list.append(I_gt)
-    gain_list.append(gain)
+    if OPTIMIZE_GAIN == 'WITH_BIAS':
+        gain_list.append([gain, 0.0])
+    else:
+        gain_list.append(gain)
 
 # Split train and test sets
 TRAIN_SET_PARTITION = 0.8

@@ -154,7 +154,7 @@ def showBrdfVignettingGainSpread(op_init, op_final, renderer: renderers.Basic, g
             else:
                 raise NotImplementedError
     optimize.unpack_op(op_backup, renderer, gain_list)
-    # axs[3].legend()
+    axs[3].legend(fontsize=8, markerscale=0.8)
 
 
 def plotBrdfDiffuse(ax, brdf: brdfs.Diffuse, **kwargs):
