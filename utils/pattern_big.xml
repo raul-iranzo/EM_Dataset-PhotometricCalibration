@@ -1,6 +1,6 @@
 <pattern>
     <vicalib>
-        <preset name="big_pattern" index="0" serialno="0" type="photodepth_c_r_s_lr_sr" version="2.0">
+        <preset name="big" index="0" serialno="0" type="photodepth_c_r_s_lr_sr" version="2.0">
             <width> 297 </width>
             <height> 210 </height>
             <!-- Pattern parameters ordered as per type name. -->

@@ -17,7 +17,7 @@ import patterns
 from renderers import Basic
 import utils
 import config_globals
-from config_globals import FRAME_COUNT, RESULTS_NAME, OPTIMIZE_LIGHT, \
+from config_globals import FRAME_COUNT, MAX_DISTANCE_TO_PATTERN_M, MIN_DISTANCE_TO_PATTERN_M, RESULTS_NAME, OPTIMIZE_LIGHT, \
     SAMPLING_STRATEGY, SAMPLING_ARGUMENTS, SIGMA_EST, IMREAD_GAUSSIANBLUR_KSIZE, \
     ENDOSCOPE_DISTAL_END_IMAGE, ENDOSCOPE_DISTAL_END_IMAGE_CENTER, \
     ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M, ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX, \
@@ -44,14 +44,17 @@ data = os.path.join(path, f'{sequence}_frames')
 frame_ids, frame_poses = file_io.read_trajectory(
     os.path.join(path, f'{sequence}_poses.csv'))
 frame_ids = sorted(frame_ids, key=lambda t: frame_poses[t][2, 3])
-min_z = frame_poses[frame_ids[0]][2, 3]
-max_z = frame_poses[frame_ids[-1]][2, 3]
-lim_z = np.linspace(min_z, max_z, len(FRAME_COUNT) + 1)
+min_z = MIN_DISTANCE_TO_PATTERN_M or frame_poses[frame_ids[0]][2, 3]
+max_z = MAX_DISTANCE_TO_PATTERN_M or frame_poses[frame_ids[-1]][2, 3]
+frame_count = FRAME_COUNT if isinstance(FRAME_COUNT, list) else [1,] * FRAME_COUNT
+lim_z = np.linspace(min_z, max_z, len(frame_count) + 1)
 selected_frame_ids = []
-for fc, l, r in zip(FRAME_COUNT, lim_z[:-1], lim_z[1:]):
-    frame_ids_in_range = list(filter(lambda t: frame_poses[t][2, 3] >= l and
-                                     frame_poses[t][2, 3] <= r, frame_ids))
+lens = []
+for fc, l, r in zip(frame_count, lim_z[:-1], lim_z[1:]):
+    frame_ids_in_range = list(filter(lambda t: abs(frame_poses[t][2, 3]) >= l and
+                                     abs(frame_poses[t][2, 3]) <= r, frame_ids))
     size = min(fc, len(frame_ids_in_range))
+    lens.append(len(frame_ids_in_range))
     frame_ids_chosen = \
         np.random.RandomState(seed=0).choice(frame_ids_in_range,
                                              size,
@@ -66,7 +69,6 @@ T_pw = np.linalg.inv(T_wp)
 camera = cameras.Factory.fromXML(
     os.path.join(path, f'{sequence}_geometrical.xml'),
     os.path.join(path, f'{sequence}_mask.png'))
-
 
 def debugSourcesOnEndoscope(axs: plt.Axes,
                             sources: List[lights.Base]):
@@ -122,6 +124,7 @@ else:
 plt.pause(2)
 
 n_frames = len(frame_ids)
+fig1, axs1 = debug.getSquaredGrid(n_frames, 'I')
 fig, axs = debug.getSquaredGrid(n_frames, 'I')
 
 # frames = []
@@ -191,7 +194,8 @@ for i in tqdm(range(n_frames), 'Loading data'):
                      renderer.camera.inv_response(I_hat))
     gain = min(gain, 1/np.max(renderer.camera.inv_response(I_hat)))
 
-    axs[i].imshow(cv2.imread(os.path.join(data, f'{frame_id:06d}.png')))
+    axs1[i].imshow(img_gray[:, :, 0], cmap='gray', vmin=0, vmax=1)
+    axs[i].imshow(img_gray[:, :, 0], cmap='gray', vmin=0, vmax=1)
     axs[i].axis('off')
     axs[i].scatter(x_uv[0, x_valid], x_uv[1, x_valid],
                    s=[20 if v < 1e-6 else 0.05 for v in I_gt],

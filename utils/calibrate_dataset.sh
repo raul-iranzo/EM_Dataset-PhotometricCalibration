@@ -28,8 +28,8 @@ fi
 cd ${DATASET_DIR}/Calibrations
 
 # calibrate photometry 
-for i in Endoscope_*; do python ${SCRIPT_DIR}/../calibration/test_hculb.py -p ${DATASET_DIR}/Calibrations -s ${i} ; done
+for i in c*_*_video; do python ${SCRIPT_DIR}/../calibration/test_hculb.py -p ${DATASET_DIR}/Calibrations -s ${i} ; done
 # collect all output data to a CSV file
-for i in Endoscope_*; do echo ${i},$(cat ${i}/${i}_output.txt | rev | cut -d' ' -f1 | rev | tr '\n' ','); done > calibrations_output.csv
+for i in c*_*_video; do echo ${i},$(cat ${i}/${i}_output.txt | rev | cut -d' ' -f1 | rev | tr '\n' ','); done > calibrations_output.csv
 
 cd ${CURRENT_DIR}

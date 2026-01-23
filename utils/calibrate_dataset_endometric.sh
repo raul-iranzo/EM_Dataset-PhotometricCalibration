@@ -39,4 +39,4 @@ python ${SCRIPT_DIR}/../calibration/test_hculb.py -p ${DATASET_DIR} -s ${DATASET
 cp "${DATASET_DIR}/${DATASET_NAME}/${DATASET_NAME}_photometrical.xml" $SEQUENCE_SF
 
 # collect all output data to a CSV file
-# for i in Endoscope_*; do echo ${i},$(cat ${i}/${i}_output.txt | rev | cut -d' ' -f1 | rev | tr '\n' ','); done > calibrations_output.csv
+# for i in c*_*_video; do echo ${i},$(cat ${i}/${i}_output.txt | rev | cut -d' ' -f1 | rev | tr '\n' ','); done > calibrations_output.csv

@@ -71,7 +71,7 @@ else
     mkdir "${SEQUENCE}/${SEQUENCE}_frames"
     FRAMES="${SEQUENCE}/${SEQUENCE}_frames/%06d.png"
     mkdir "${SEQUENCE}/ffmpeg_logs"
-    ffmpeg -r 1 -i ${VIDEO_FILE} -r 1 ${FRAMES} &> "${SEQUENCE}/ffmpeg_logs/stdout.txt"
+    ffmpeg -r 1 -i ${VIDEO_FILE} -pix_fmt rgb24 -r 1 ${FRAMES} &> "${SEQUENCE}/ffmpeg_logs/stdout.txt"
     echo -e "${OK} Frames extracted to '${SEQUENCE}/${SEQUENCE}_frames'"
 fi
 

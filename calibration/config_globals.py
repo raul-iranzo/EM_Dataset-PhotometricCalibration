@@ -67,7 +67,9 @@ SAMPLING_ARGUMENTS = {
                       }
 
 # Frame skip
-FRAME_COUNT = [8, 15, 25]
+MAX_DISTANCE_TO_PATTERN_M = 0.010  # meters
+MIN_DISTANCE_TO_PATTERN_M = 0.003  # meters
+FRAME_COUNT = 48  # number of frames to use for calibration
 IMREAD_GAUSSIANBLUR_KSIZE = 9
 
 # Estimated sigma for residual normalization (see Huber loss)

@@ -12,6 +12,59 @@ OK="[${GREEN}OK${NC}]"
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+usage() {
+    echo "Usage: $(basename "$0") [--dataset PATH] [--camera kb4|poly2] [--pattern big|small|times_06|times_04|times_02|times_01]"
+}
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dataset)
+                [[ -n "${2:-}" ]] || { echo -e "${ERROR} Missing value for --dataset"; exit 2; }
+                DATASET_DIR="$2"; shift 2;;
+            --camera)
+                [[ -n "${2:-}" ]] || { echo -e "${ERROR} Missing value for --camera"; exit 2; }
+                CAMERA_MODEL="$2"; shift 2;;
+            --pattern)
+                [[ -n "${2:-}" ]] || { echo -e "${ERROR} Missing value for --pattern"; exit 2; }
+                PATTERN_SIZE="$2"; shift 2;;
+            -h|--help)
+                usage; exit 0;;
+            --)
+                shift; break;;
+            *)
+                echo -e "${WARNING} Unknown argument '$1'"; shift;;
+        esac
+    done
+    if [[ -n "$CAMERA_MODEL" && "$CAMERA_MODEL" != "kb4" && "$CAMERA_MODEL" != "poly2" ]]; then
+        echo -e "${WARNING} Invalid camera model '$CAMERA_MODEL'. Using 'kb4'."
+        CAMERA_MODEL="kb4"
+    fi
+    case "$PATTERN_SIZE" in
+        ""|big|small|times_06|times_04|times_02|times_01) ;;
+        *) echo -e "${WARNING} Invalid pattern size '$PATTERN_SIZE'. Using 'big'."; PATTERN_SIZE="big";;
+    esac
+}
+
+parse_args "$@"
+
+read() {
+    local varname=""
+    for arg in "$@"; do
+        [[ "$arg" == -* ]] && continue
+        varname="$arg"; break
+    done
+    case "$varname" in
+        DATASET_DIR)
+            [[ -n "$DATASET_DIR" ]] && return 0;;
+        CAMERA_MODEL)
+            [[ -n "$CAMERA_MODEL" ]] && return 0;;
+        PATTERN_SIZE)
+            [[ -n "$PATTERN_SIZE" ]] && return 0;;
+    esac
+    builtin read "$@"
+}
+
 echo
 cat LICENSE
 echo
@@ -66,6 +119,16 @@ echo
 echo -e "${INFO} Using '${CAMERA_MODEL}' camera model..."
 echo
 echo
+echo -n "Select pattern size [big|small|times_06|times_04|times_02|times_01] (default big): "
+read PATTERN_SIZE
+if [ "$PATTERN_SIZE" != "small" ] && [ "$PATTERN_SIZE" != "times_06" ] && [ "$PATTERN_SIZE" != "times_04" ] && [ "$PATTERN_SIZE" != "times_02" ] && [ "$PATTERN_SIZE" != "times_01" ]; then
+    PATTERN_SIZE="big"
+fi
+echo
+echo
+echo -e "${INFO} Using '${PATTERN_SIZE}' pattern size..."
+echo
+echo
 echo -e "Have you checked the image mask at 'utils/mask.png'? [Y/n]: "
 read YES_NO
 if [ "$YES_NO" == "n" ] ||[ "$YES_NO" == "N" ]; then
@@ -75,7 +138,7 @@ fi
 echo
 echo
 chmod +x ${SCRIPT_DIR}/utils/prepare_dataset.sh
-${SCRIPT_DIR}/utils/prepare_dataset.sh ${DATASET_DIR} ${CAMERA_MODEL}
+${SCRIPT_DIR}/utils/prepare_dataset.sh ${DATASET_DIR} ${CAMERA_MODEL} ${PATTERN_SIZE}
 echo
 echo
 chmod +x ${SCRIPT_DIR}/utils/calibrate_dataset.sh
