@@ -49,10 +49,10 @@ class Basic:
         L_o = 0
         for source in self.sources:
             li, wi_w = source.sample(T_wc, x_w)
-            cosine = np.sum((T_wp @ n_p) * wi_w, axis=0)[np.newaxis, :]
-            brdf = self.pattern.brdf.sample(T_pw @ wi_w, T_pw @ wo, n_p)
+            cosine = np.sum((T_wp @ n_p)[:, None, :] * wi_w, axis=0, keepdims=True)
+            brdf = self.pattern.brdf.sample(np.einsum('ik,kjh->ijh', T_pw, wi_w), T_pw @ wo, n_p)
             # render equation
-            L_o += li * albedo * brdf * cosine
+            L_o += albedo * np.sum(li * brdf * cosine, axis=1)
 
         uv, valid_uv = self.camera.project(T_cw @ x_w)
         vignetting = np.zeros((1, uv.shape[1]))

@@ -13,7 +13,7 @@ CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 usage() {
-    echo "Usage: $(basename "$0") [--dataset PATH] [--camera kb4|poly2] [--pattern big|small|times_06|times_04|times_02|times_01]"
+    echo "Usage: $(basename "$0") [--dataset PATH] [--camera kb4|poly2] [--pattern big|small|times_06|times_04|times_02|times_01] [-y] [-h|--help]"
 }
 
 parse_args() {
@@ -28,6 +28,8 @@ parse_args() {
             --pattern)
                 [[ -n "${2:-}" ]] || { echo -e "${ERROR} Missing value for --pattern"; exit 2; }
                 PATTERN_SIZE="$2"; shift 2;;
+            -y)
+                YES_NO="y"; shift;;
             -h|--help)
                 usage; exit 0;;
             --)
@@ -61,6 +63,8 @@ read() {
             [[ -n "$CAMERA_MODEL" ]] && return 0;;
         PATTERN_SIZE)
             [[ -n "$PATTERN_SIZE" ]] && return 0;;
+        YES_NO)
+            [[ -n "$YES_NO" ]] && return 0;;
     esac
     builtin read "$@"
 }

@@ -8,17 +8,20 @@
 #   - TRI_NFSLS
 #   - TRI_NFZSLS
 #   - TRI_NFZESLS
+#   - TRI_ANFZESLS
 #
 # Available generic models:
 #   - PLS: point light source
 #   - SLS: spot light source (with spread function)
 #
 # Availabel flags:
+#   - A: area light source (approximated with multiple point lights)
 #   - N: normalized radiance (emission at x is fixed)
 #   - F: fixed position (known pose wrt. camera or aligned to optical center)
 #   - Z: principal direction fixed to camera forward (SLS only)
 #   - E: light parameters are the same for all lights
-OPTIMIZE_LIGHT = 'TRI_NFZESLS'
+OPTIMIZE_LIGHT = 'TRI_ANFZESLS'
+LIGHT_AREA_SAMPLING_LEVEL = 2  # only used for area lights
 
 # Bidirectional Reflectance Distribution Function (BRDF) is estimated for the
 # whole calibration pattern bet but is not a useful parameter.
@@ -84,6 +87,7 @@ ENDOSCOPE_DISTAL_END_IMAGE = os.path.join(CONFIG_PATH, 'images/CF-H190L.png')
 ENDOSCOPE_DISTAL_END_IMAGE_CENTER = (19.6185, 14.1445)
 ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M = 0.0132
 ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX = 37.3565
+ENDOSCOPE_LIGHT_DIAMETERS_M = [0.002279684338325, 0.002279684338325, 0.002279684338325]
 ENDOSCOPE_LIGHT_CENTERS = \
     [np.array([[0.00323582241377003], [0.000553702836186474], [0.0], [1.0]]),
      np.array([[-0.00277399113942687], [0.00265685489807664], [0.0], [1.0]]),

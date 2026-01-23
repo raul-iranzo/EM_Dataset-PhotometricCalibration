@@ -12,7 +12,7 @@ class Base(utils.Optimizable):
     def sample(self,
                T_wc: NDArray[(4, 1), float],
                x_w: NDArray[(4, Any), float]) \
-            -> Tuple[NDArray[(3, Any), float], NDArray[(4, Any), float]]:
+            -> Tuple[NDArray[(1, Any, Any), float], NDArray[(4, Any, Any), float]]:
         ''' Sample light _comming_ to a point in space'''
         assert T_wc.shape == (4, 4), \
             f'`T_wc` attached camera pose must be (4, 4), but {T_wc.shape} encountered.'
@@ -40,40 +40,102 @@ class SpotLightSource(Base):
     P: NDArray[(4, 1), float]  # light centre in camera reference
     D: NDArray[(4, 1), float]  # principal direction in camera reference
 
+    # New attributes for multi-center area light approximation
+    radius: float = 0.0  # radius of the area light
+    area_sampling_resolution: int = 0  # level of sampling resolution
+
     def __init__(self,
                  sigma: float = 1.0,
                  mu: float = 0.0,
                  P: NDArray[(4, 1), float] = np.array(
                      [[0.], [0.], [0.], [1.]]),
                  D: NDArray[(4, 1), float] = np.array(
-                     [[0.], [0.], [1.], [0.]])) -> None:
+                     [[0.], [0.], [1.], [0.]]),
+                 radius: float = 0.0,
+                 area_sampling_resolution: int = 0) -> None:
         assert D.shape == (4, 1), '`D` must be homogeneous direction'
         self.sigma = sigma
         self.mu = mu
         self.P = P
         self.D = D
+        self.radius = radius
+        self.area_sampling_resolution = area_sampling_resolution
+        self._area_sampling_offsets = self._get_area_light_offsets()
 
     def sample(self,
                T_wc: NDArray[(4, 1), float],
                x_w: NDArray[(4, Any), float]) \
-            -> Tuple[NDArray[(3, Any), float], NDArray[(4, Any), float]]:
+            -> Tuple[NDArray[(1, Any, Any), float], NDArray[(4, Any, Any), float]]:
         super().sample(T_wc, x_w)
 
         T_cw = np.linalg.inv(T_wc)
         x_c = T_cw @ x_w
 
-        vP2x = x_c - self.P
-        d = np.linalg.norm(vP2x, axis=0)[np.newaxis, :]
+        # accumulate contribution from all point lights approximating the area light
+        P_all = self.P + self._area_sampling_offsets  # shape (4, N_points)
+
+        vP2x = x_c[:, None, :] - P_all[:, :, None]
+        d = np.linalg.norm(vP2x, axis=0, keepdims=True)
         L_x = vP2x / d
         S_x = 1 / (d * d)
-        R_x = np.exp(-self.mu * (1 - self.D.T @ L_x))
+        R_x = np.exp(-self.mu * (1 - np.einsum('ik,kjh->ijh', self.D.T, L_x)))
 
         sigma_SLS = self.sigma * R_x * S_x * L_x
 
         # return value and direction separately
-        value = np.linalg.norm(sigma_SLS, axis=0)[np.newaxis, :]
-        w_i = T_wc @ -L_x
+        value = np.linalg.norm(sigma_SLS, axis=0, keepdims=True)
+        w_i =  np.einsum('ik,kjh->ijh', T_wc, -L_x)  # direction towards light in world coordinates
         return value, w_i
+    
+    def _get_area_light_offsets(self) -> NDArray[(4, Any), float]:
+        '''
+            Generate point light offsets to approximate area light
+            Example for resolution level = 1
+                          o---o
+                         / \ / \ 
+                        o---O---o
+                         \ / \ /
+                          o---o
+
+            Example for resolution level = 2
+                          o---o---o
+                         / \ / \ / \
+                        o---o---o---o
+                       / \ / \ / \ / \
+                      o---o---O---o---o
+                       \ / \ / \ / \ /
+                        o---o---o---o
+                         \ / \ / \ /
+                          o---o---o
+            @return: list of displacement points in homogeneous coordinates
+        '''
+        if self.radius <= 0.0 or self.area_sampling_resolution < 1:
+            # radius is zero or sampling resolution is 0, return single point light
+            return np.array([[[0.], [0.], [0.], [0.]]])  # single point light at center
+        
+        def _get_point(radius: float, angle: float) -> NDArray[(4, 1), float]:
+            x = radius * np.cos(angle)
+            y = radius * np.sin(angle)
+            return np.array([[x], [y], [0.], [0.]])
+
+        HEXAGONE = 6
+        offsets = [np.array([[0.], [0.], [0.], [0.]])] # start with center point
+        phi = np.linspace(0, 2 * np.pi, HEXAGONE, endpoint=False)
+        for level in range(1, self.area_sampling_resolution + 1):
+            _radius = self.radius * level / self.area_sampling_resolution
+            for i in range(len(phi)):
+                sample_point = _get_point(_radius, phi[i])
+                prev_sample_point = _get_point(_radius, phi[i-1])
+                for j in range(1, level):
+                    # interpolate points between current and previous point
+                    # level=1 -> 0 interp point
+                    # level=2 -> 1 interp points
+                    # level=3 -> 2 interp points
+                    ratio = j / level
+                    interp_point = prev_sample_point * (1 - ratio) + sample_point * ratio
+                    offsets.append(interp_point)
+                offsets.append(sample_point)
+        return np.hstack(offsets)
 
     def _get_params(self) -> List:
         params = [self.sigma]

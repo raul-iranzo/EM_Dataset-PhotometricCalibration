@@ -9,7 +9,7 @@ from nptyping import NDArray
 class Base(utils.Optimizable):
 
     def sample(self,
-               w_i: NDArray[(4, Any), float],
+               w_i: NDArray[(4, Any, Any), float],
                w_o: NDArray[(4, Any), float],
                n: NDArray[(4, Any), float]) \
             -> NDArray[(3, Any), float]:
@@ -38,12 +38,12 @@ class Diffuse(Base):
         pass
 
     def sample(self,
-               w_i: NDArray[(4, Any), float],
+               w_i: NDArray[(4, Any, Any), float],
                w_o: NDArray[(4, Any), float],
                n: NDArray[(4, Any), float]) \
             -> NDArray[(3, Any), float]:
         super().sample(w_i, w_o, n)
-        return np.full((3, w_i.shape[1]), 1/np.pi)
+        return np.full((3, w_i.shape[1], w_i.shape[2]), 1/np.pi)
 
     def _get_params(self) -> List:
         return []
@@ -81,15 +81,15 @@ class Phong(Base):
         return np.array([1, np.inf])  # _ks, _n
 
     def sample(self,
-               w_i: NDArray[(4, Any), float],
+               w_i: NDArray[(4, Any, Any), float],
                w_o: NDArray[(4, Any), float],
                n: NDArray[(4, Any), float]) \
             -> NDArray[(3, Any), float]:
         super().sample(w_i, w_o, n)
-        w_r = 2 * np.sum(n * w_i, axis=0)[np.newaxis, :] * n - w_i
-        cosine = np.clip(np.sum(w_o * w_r, axis=0), 0, None)[np.newaxis, :]
+        w_r = 2 * np.sum(n[:, None, :] * w_i, axis=0, keepdims=True) * n[:, None, :] - w_i  # (4, Any, Any)
+        cosine = np.clip(np.sum(w_o[:, None, :] * w_r, axis=0, keepdims=True), 0, None)  # (1, Any, Any)
         value = (1 - self._ks) / np.pi + self._ks * cosine ** self._n
-        return np.full((3, w_i.shape[1]), value)
+        return np.full((3, w_i.shape[1], w_i.shape[2]), value)  # (3, Any, Any)
 
 
 class LUT(Base):
@@ -114,14 +114,14 @@ class LUT(Base):
         return np.repeat(1, self.num_params)
 
     def sample(self,
-               w_i: NDArray[(4, Any), float],
+               w_i: NDArray[(4, Any, Any), float],
                w_o: NDArray[(4, Any), float],
                n: NDArray[(4, Any), float]) \
             -> NDArray[(3, Any), float]:
         super().sample(w_i, w_o, n)
         # relection angle of -w_i
-        w_r = 2 * np.sum(n * w_i, axis=0)[np.newaxis, :] * n - w_i
-        cosine = np.sum(w_o * w_r, axis=0)[np.newaxis, :]
+        w_r = 2 * np.sum(n[:, None, :] * w_i, axis=0, keepdims=True) * n[:, None, :] - w_i
+        cosine = np.sum(w_o[:, None, :] * w_r, axis=0, keepdims=True)
         angle = np.arccos(cosine)
         value = np.interp(angle, self._angles, self._values)
-        return np.full((3, w_i.shape[1]), value)
+        return np.full((3, w_i.shape[1], w_i.shape[2]), value)

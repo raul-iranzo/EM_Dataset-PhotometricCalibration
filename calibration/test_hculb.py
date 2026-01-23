@@ -17,7 +17,7 @@ import patterns
 from renderers import Basic
 import utils
 import config_globals
-from config_globals import FRAME_COUNT, MAX_DISTANCE_TO_PATTERN_M, MIN_DISTANCE_TO_PATTERN_M, RESULTS_NAME, OPTIMIZE_LIGHT, \
+from config_globals import ENDOSCOPE_LIGHT_DIAMETERS_M, FRAME_COUNT, LIGHT_AREA_SAMPLING_LEVEL, MAX_DISTANCE_TO_PATTERN_M, MIN_DISTANCE_TO_PATTERN_M, RESULTS_NAME, OPTIMIZE_LIGHT, \
     SAMPLING_STRATEGY, SAMPLING_ARGUMENTS, SIGMA_EST, IMREAD_GAUSSIANBLUR_KSIZE, \
     ENDOSCOPE_DISTAL_END_IMAGE, ENDOSCOPE_DISTAL_END_IMAGE_CENTER, \
     ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M, ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX, \
@@ -90,21 +90,27 @@ elif OPTIMIZE_LIGHT == 'SINGLE_NSLS':
     sources = [lights.NormalizedSpotLightSource()]
 elif OPTIMIZE_LIGHT == 'SINGLE_NSLS2D':
     sources = [lights.NormalizedSpotLightSource2D()]
-elif OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS']:
+elif OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS', 'TRI_ANFZESLS']:
     z = np.array([[0], [0], [1], [0]])
     mu_value = 0.0  # Common for all lights
     sources = [
         lights.NormalizedZFixedSpotLightSource(mu=mu_value,
                                               P=ENDOSCOPE_LIGHT_CENTERS[0],
-                                              D=np.copy(z)),
+                                              D=np.copy(z),
+                                              radius=ENDOSCOPE_LIGHT_DIAMETERS_M[0] / 2 if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 0.0,
+                                              area_sampling_resolution=LIGHT_AREA_SAMPLING_LEVEL if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 1),
         lights.NormalizedZFixedSpotLightSource(
                                     mu=mu_value,
                                     P=ENDOSCOPE_LIGHT_CENTERS[1],
-                                    D=np.copy(z)),
+                                    D=np.copy(z),
+                                    radius=ENDOSCOPE_LIGHT_DIAMETERS_M[1] / 2 if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 0.0,
+                                    area_sampling_resolution=LIGHT_AREA_SAMPLING_LEVEL if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 1),
         lights.NormalizedZFixedSpotLightSource(
                                     mu=mu_value,
                                     P=ENDOSCOPE_LIGHT_CENTERS[2],
-                                    D=np.copy(z))]
+                                    D=np.copy(z),
+                                    radius=ENDOSCOPE_LIGHT_DIAMETERS_M[2] / 2 if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 0.0,
+                                    area_sampling_resolution=LIGHT_AREA_SAMPLING_LEVEL if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 1)]
     # DEBUG: plot all light sources in the endoscope
     fig, axs = plt.subplots(1, 1)
     axs.set_title('Init')
