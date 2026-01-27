@@ -20,8 +20,8 @@
 #   - F: fixed position (known pose wrt. camera or aligned to optical center)
 #   - Z: principal direction fixed to camera forward (SLS only)
 #   - E: light parameters are the same for all lights
-OPTIMIZE_LIGHT = 'TRI_ANFZESLS'
-LIGHT_AREA_SAMPLING_LEVEL = 2  # only used for area lights
+OPTIMIZE_LIGHT = 'TRI_NFZESLS'
+LIGHT_AREA_SAMPLING_LEVEL = 1  # only used for area lights
 
 # Bidirectional Reflectance Distribution Function (BRDF) is estimated for the
 # whole calibration pattern bet but is not a useful parameter.
@@ -70,9 +70,9 @@ SAMPLING_ARGUMENTS = {
                       }
 
 # Frame skip
-MAX_DISTANCE_TO_PATTERN_M = 0.010  # meters
+MAX_DISTANCE_TO_PATTERN_M = 0.025  # meters
 MIN_DISTANCE_TO_PATTERN_M = 0.003  # meters
-FRAME_COUNT = 48  # number of frames to use for calibration
+FRAME_COUNT = 48 # number of frames to use for calibration
 IMREAD_GAUSSIANBLUR_KSIZE = 9
 
 # Estimated sigma for residual normalization (see Huber loss)

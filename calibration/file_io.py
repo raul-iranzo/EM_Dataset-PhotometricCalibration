@@ -56,7 +56,7 @@ def save_config(file_name: str, cg: Dict[str, str]):
 
 
 def save_calib_xml(file_name: str, renderer: renderers.Basic):
-    assert OPTIMIZE_LIGHT in ['SINGLE_NSLS', 'SINGLE_NFSLS', 'SINGLE_NZFSLS', 'SINGLE_NSLS2D', 'TRI_NFSLS', 'TRI_NFZESLS', "TRI_NFZSLS"] and \
+    assert OPTIMIZE_LIGHT in ['SINGLE_NSLS', 'SINGLE_NFSLS', 'SINGLE_NZFSLS', 'SINGLE_NSLS2D', 'TRI_NFSLS', 'TRI_NFZESLS', "TRI_NFZSLS", "TRI_ANFZESLS"] and \
         OPTIMIZE_VIGNETTING in ['NONE', 'COSINE'], \
         'XML export invalid for current configuration.'
 
@@ -109,6 +109,13 @@ def save_calib_xml(file_name: str, renderer: renderers.Basic):
         D = ET.SubElement(light_model, 'D')
         D.text = f' {utils.mat2str(source.D[0:3, :], 6)} '
 
+        light_model.append(ET.Comment(
+            ' point light emitters approximating the area light '))
+        emitters = ET.SubElement(light_model, 'emitters')
+        emitter_positions = source.emitters
+        emitters.text = f' {utils.mat2str(emitter_positions[0:3, :], 10)} '
+
+
     # create a new XML file with the results
     xmlstr = minidom.parseString(ET.tostring(
         rig)).childNodes[0].toprettyxml(indent="    ")
@@ -137,8 +144,9 @@ def read_calib_xml(file_name: str, renderer: renderers.Basic):
             mu = float(light_model.find('mu').text)
             P = utils.point(utils.str2mat(light_model.find('P').text))
             D = utils.direction(utils.str2mat(light_model.find('D').text))
+            emitter_positions = utils.str2mat(light_model.find('emitters').text)
             renderer.sources.append(lights.NormalizedSpotLightSource(
-                sigma, mu, P, D
+                sigma, mu, P, D, emitters=emitter_positions
             ))
         else:
             raise ValueError(f'Unsupported light type \'{light_type}\'')

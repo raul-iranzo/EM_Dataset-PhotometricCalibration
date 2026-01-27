@@ -60,7 +60,18 @@ for fc, l, r in zip(frame_count, lim_z[:-1], lim_z[1:]):
                                              size,
                                              replace=False)
     selected_frame_ids += frame_ids_chosen.tolist()
+
+plt.figure()
+plt.title('Frames distance to pattern')
+plt.hist([frame_poses[t][2, 3] * 1000 for t in frame_ids], bins=30, alpha=0.5, label='All frames')
 frame_ids = sorted(selected_frame_ids, key=lambda t: frame_poses[t][2, 3])
+plt.plot([frame_poses[t][2, 3] * 1000 for t in frame_ids], np.zeros(len(frame_ids)), 'rx', label='Selected frames')
+plt.xlabel('Distance to pattern (mm)')
+plt.ylabel('Count')
+plt.legend()
+plt.pause(1)
+
+
 
 pattern = patterns.Factory.fromXML(os.path.join(path, f'{sequence}_pattern.xml'))
 T_wp = pattern.T_wp

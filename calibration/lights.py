@@ -52,7 +52,8 @@ class SpotLightSource(Base):
                  D: NDArray[(4, 1), float] = np.array(
                      [[0.], [0.], [1.], [0.]]),
                  radius: float = 0.0,
-                 area_sampling_resolution: int = 0) -> None:
+                 area_sampling_resolution: int = 0,
+                 emitters: NDArray[(4, Any), float] = None) -> None:
         assert D.shape == (4, 1), '`D` must be homogeneous direction'
         self.sigma = sigma
         self.mu = mu
@@ -61,6 +62,7 @@ class SpotLightSource(Base):
         self.radius = radius
         self.area_sampling_resolution = area_sampling_resolution
         self._area_sampling_offsets = self._get_area_light_offsets()
+        self._emitters = emitters
 
     def sample(self,
                T_wc: NDArray[(4, 1), float],
@@ -72,20 +74,26 @@ class SpotLightSource(Base):
         x_c = T_cw @ x_w
 
         # accumulate contribution from all point lights approximating the area light
-        P_all = self.P + self._area_sampling_offsets  # shape (4, N_points)
 
-        vP2x = x_c[:, None, :] - P_all[:, :, None]
+        vP2x = x_c[:, None, :] - self.emitters[:, :, None]
         d = np.linalg.norm(vP2x, axis=0, keepdims=True)
         L_x = vP2x / d
         S_x = 1 / (d * d)
-        R_x = np.exp(-self.mu * (1 - np.einsum('ik,kjh->ijh', self.D.T, L_x)))
+        R_x = np.exp(-self.mu * (1 - np.tensordot(self.D.T, L_x, axes=([1], [0]))))
 
         sigma_SLS = self.sigma * R_x * S_x * L_x
 
         # return value and direction separately
         value = np.linalg.norm(sigma_SLS, axis=0, keepdims=True)
-        w_i =  np.einsum('ik,kjh->ijh', T_wc, -L_x)  # direction towards light in world coordinates
+        w_i =  np.tensordot(T_wc, -L_x, axes=([1], [0]))  # direction towards light in world coordinates
         return value, w_i
+    
+    @property
+    def emitters(self) -> List[NDArray[(4, 1), float]]:
+        ''' Return list of point light emitters approximating the area light '''
+        if self._emitters is not None:
+            return self._emitters
+        return self.P + self._area_sampling_offsets
     
     def _get_area_light_offsets(self) -> NDArray[(4, Any), float]:
         '''
@@ -111,7 +119,7 @@ class SpotLightSource(Base):
         '''
         if self.radius <= 0.0 or self.area_sampling_resolution < 1:
             # radius is zero or sampling resolution is 0, return single point light
-            return np.array([[[0.], [0.], [0.], [0.]]])  # single point light at center
+            return np.array([[0.], [0.], [0.], [0.]])  # single point light at center
         
         def _get_point(radius: float, angle: float) -> NDArray[(4, 1), float]:
             x = radius * np.cos(angle)

@@ -50,7 +50,7 @@ class Basic:
         for source in self.sources:
             li, wi_w = source.sample(T_wc, x_w)
             cosine = np.sum((T_wp @ n_p)[:, None, :] * wi_w, axis=0, keepdims=True)
-            brdf = self.pattern.brdf.sample(np.einsum('ik,kjh->ijh', T_pw, wi_w), T_pw @ wo, n_p)
+            brdf = self.pattern.brdf.sample(T_pw @ wi_w.reshape(4, -1), T_pw @ wo, n_p).reshape(3, wi_w.shape[1], wi_w.shape[2])
             # render equation
             L_o += albedo * np.sum(li * brdf * cosine, axis=1)
 

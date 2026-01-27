@@ -288,9 +288,9 @@ def sourcesOnEndoscope(axs: plt.Axes,
     m2px = diameter_px / diameter_m
     axs.plot(center_px[0] * px2uv, center_px[1] * px2uv, 'ks', label='camera')
     for i, source in enumerate(sources):
-        axs.plot((center_px[0] - source.P[0] * m2px) * px2uv,
-                 (center_px[1] + source.P[1] * m2px) * px2uv, '.',
-                 label=f'light{i}')
+            axs.scatter((center_px[0] - source.emitters[0, :] * m2px) * px2uv,
+                    (center_px[1] + source.emitters[1, :] * m2px) * px2uv,
+                    label=f'light{i}')
 
 
 def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
@@ -313,6 +313,7 @@ def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
     x_w[3, :] = 1
     for i, ax, source in zip(range(len(axs) - 1), axs[1:-1], renderer.sources):
         l, wi_w = source.sample(T_wc, x_w)
+        l = np.average(l, axis=1)
         l[:, np.logical_not(mask)] = 0.0
         l_show = ax.imshow(l.reshape(resolution))
         plt.colorbar(l_show, ax=ax)
