@@ -2,7 +2,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import numpy as np
 
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Dict
 from nptyping import NDArray
 
 
@@ -16,21 +16,31 @@ class Optimizable(object):
         return len(self.params)
 
     @property
-    def params(self) -> List:
+    def params(self) -> List[float]:
         return self._get_params()
-
+    
+    @property
+    def param_names(self) -> List[str]:
+        return self._get_param_names()
+    
+    @property
+    def named_params(self) -> Dict[str, float]:
+        names = self.param_names
+        params = self.params
+        return {names[i]: params[i] for i in range(len(names))}
+    
     @property
     def lower_bound(self) -> NDArray:
         bound = self._get_lower_bound()
         assert len(bound) == self.num_params, \
-            f'Invalid lower bound dims. Expected {self.nun_params}, {len(bound)} given.'
+            f'Invalid lower bound dims. Expected {self.num_params}, {len(bound)} given.'
         return bound
 
     @property
     def upper_bound(self) -> NDArray:
         bound = self._get_upper_bound()
         assert len(bound) == self.num_params, \
-            f'Invalid upper bound dims. Expected {self.nun_params}, {len(bound)} given.'
+            f'Invalid upper bound dims. Expected {self.num_params}, {len(bound)} given.'
         return bound
 
     @params.setter
@@ -39,16 +49,19 @@ class Optimizable(object):
             f'Expected {self.num_params} parameters, {len(a)} given.'
         self._set_params(a)
 
-    def _set_params(self, a: List) -> None:
+    def _set_params(self, a: List[float]) -> None:
         raise NotImplementedError
 
-    def _get_params(self) -> List:
+    def _get_params(self) -> List[float]:
         raise NotImplementedError
 
     def _get_lower_bound(self) -> NDArray:
         raise NotImplementedError
 
     def _get_upper_bound(self) -> NDArray:
+        raise NotImplementedError
+    
+    def _get_param_names(self) -> List[str]:
         raise NotImplementedError
 
 

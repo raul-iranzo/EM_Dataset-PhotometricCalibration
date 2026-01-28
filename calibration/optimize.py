@@ -2,7 +2,7 @@ import numpy as np
 import scipy.optimize
 
 import renderers
-from config_globals import OPTIMIZE_GAIN, OPTIMIZE_LIGHT
+from config_globals import OPTIMIZE_GAIN, OPTIMIZE_LIGHT, OPTIMIZE_LIGHT_SHARED_PARAMS
 
 from typing import Any, List
 from nptyping import NDArray
@@ -15,11 +15,11 @@ def pack_op(renderer: renderers.Basic,
     op += [renderer.camera.vignetting.params]
     op += [renderer.pattern.brdf.params]
 
-    if 'E' in OPTIMIZE_LIGHT.split('_')[1]:  
-        op += [renderer.sources[0].params]      # Lights share the parameters
-    else:
-        for i in range(len(renderer.sources)):
-            op += [renderer.sources[i].params]
+
+    op += [renderer.sources[0].params]
+    for i in range(1, len(renderer.sources)):
+        # Include non-shared parameters (otherwise included from the first light)
+        op += [[v for n, v in renderer.sources[i].named_params.items() if n not in OPTIMIZE_LIGHT_SHARED_PARAMS]]
 
     if OPTIMIZE_GAIN == 'ALL':
         op += [gain[:]]
@@ -30,6 +30,22 @@ def pack_op(renderer: renderers.Basic,
     
     return np.concatenate(op)
 
+
+def op_names(renderer: renderers.Basic,
+                    gain: List[float]) -> List[str]:
+    names = []
+    names += [f'vignetting_{n}' for n in renderer.camera.vignetting.param_names]
+    names += [f'brdf_{n}' for n in renderer.pattern.brdf.param_names]
+    names += [f'light0_{n}' for n in renderer.sources[0].param_names]
+    for i in range(1, len(renderer.sources)):
+        names_ = [n for n in renderer.sources[i].param_names
+                  if n not in OPTIMIZE_LIGHT_SHARED_PARAMS]
+        names += [f'light{i}_{n}' for n in names_]
+    if OPTIMIZE_GAIN == 'ALL':
+        names += [f'gain_frame{j}' for j in range(len(gain))]
+    elif OPTIMIZE_GAIN == 'EXCLUDE_FIRST':
+        names += [f'gain_frame{j}' for j in range(1, len(gain))]
+    return names
     
 def unpack_op(op: NDArray[(Any, ), float],
               renderer: renderers.Basic,
@@ -41,20 +57,19 @@ def unpack_op(op: NDArray[(Any, ), float],
     sup = inf + renderer.pattern.brdf.num_params
     renderer.pattern.brdf.params = op[inf:sup].tolist()
 
-    if 'E' in OPTIMIZE_LIGHT.split('_')[1]:
+    inf = sup
+    sup = inf + renderer.sources[0].num_params
+    renderer.sources[0].params = op[inf:sup].tolist()
+    for i in range(1, len(renderer.sources)):
+        non_equal_params = [n for n in renderer.sources[i].param_names
+                            if n not in OPTIMIZE_LIGHT_SHARED_PARAMS]
         inf = sup
-        sup = inf + renderer.sources[0].num_params
-        # Lights share the parameters
-        light_params = op[inf:sup]
-        for i in range(len(renderer.sources)):
-            renderer.sources[i].params = light_params
-        inf = sup  
-    else:
-        for i in range(len(renderer.sources)):
-            inf = sup
-            sup = inf + renderer.sources[i].num_params
-            renderer.sources[i].params = op[inf:sup].tolist()
-        inf = sup
+        sup = inf + len(non_equal_params)
+        op_ = renderer.sources[0].named_params
+        for j, n in enumerate(non_equal_params):
+            op_[n] = op[inf + j]
+        renderer.sources[i].params = [op_[n] for n in renderer.sources[i].param_names]
+    inf = sup
 
     if OPTIMIZE_GAIN == 'ALL':
         gain[:] = op[inf:]
@@ -73,19 +88,22 @@ def bounds(renderer: renderers.Basic,
     upper_bound = np.concatenate(
         [upper_bound, renderer.pattern.brdf.upper_bound])
     
-    if 'E' in OPTIMIZE_LIGHT.split('_')[1]:
-        # Lights share the parameters
+    lower_bound = np.concatenate(
+        [lower_bound, renderer.sources[0].lower_bound])
+    upper_bound = np.concatenate(
+        [upper_bound, renderer.sources[0].upper_bound])
+    for i in range(1, len(renderer.sources)):
+        lower_bound_ = [v for n, v in zip(
+            renderer.sources[i].param_names, renderer.sources[i].lower_bound)
+            if n not in OPTIMIZE_LIGHT_SHARED_PARAMS]
+        upper_bound_ = [v for n, v in zip(
+            renderer.sources[i].param_names, renderer.sources[i].upper_bound)
+            if n not in OPTIMIZE_LIGHT_SHARED_PARAMS]       
         lower_bound = np.concatenate(
-            [lower_bound, renderer.sources[0].lower_bound])
+            [lower_bound, lower_bound_])
         upper_bound = np.concatenate(
-            [upper_bound, renderer.sources[0].upper_bound])
-    else:
-        for i in range(len(renderer.sources)):
-            lower_bound = np.concatenate(
-                [lower_bound, renderer.sources[i].lower_bound])
-            upper_bound = np.concatenate(
-                [upper_bound, renderer.sources[i].upper_bound])
-            
+            [upper_bound, upper_bound_])
+        
     lower_bound = np.concatenate([lower_bound, np.repeat(
         1e-6, len(gain) + (0 if OPTIMIZE_GAIN == 'ALL' else -1))])
     upper_bound = np.concatenate([upper_bound, np.repeat(

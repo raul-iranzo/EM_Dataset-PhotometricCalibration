@@ -56,6 +56,9 @@ class Diffuse(Base):
 
     def _get_upper_bound(self) -> NDArray:
         return np.empty(0)
+    
+    def _get_param_names(self) -> List[str]:
+        return []
 
 
 class Phong(Base):
@@ -79,6 +82,9 @@ class Phong(Base):
 
     def _get_upper_bound(self) -> NDArray:
         return np.array([1, np.inf])  # _ks, _n
+    
+    def _get_param_names(self) -> List[str]:
+        return ['ks', 'n']
 
     def sample(self,
                w_i: NDArray[(4, Any), float],
@@ -101,10 +107,10 @@ class LUT(Base):
         self._angles = np.linspace(0, np.radians(160), step)
         self._values = np.full(step, 1/np.pi)
 
-    def _get_params(self) -> List:
+    def _get_params(self) -> List[float]:
         return self._values.tolist()[1:]
 
-    def _set_params(self, a: List) -> None:
+    def _set_params(self, a: List[float]) -> None:
         self._values[1:] = np.array(a)
 
     def _get_lower_bound(self) -> NDArray:
@@ -112,6 +118,9 @@ class LUT(Base):
 
     def _get_upper_bound(self) -> NDArray:
         return np.repeat(1, self.num_params)
+    
+    def _get_param_names(self) -> List[str]:
+        return [f'value_{i}' for i in range(1, self.num_params + 1)]
 
     def sample(self,
                w_i: NDArray[(4, Any), float],

@@ -37,6 +37,9 @@ class Constant(Base):
     def _get_upper_bound(self) -> NDArray:
         return np.empty(0)
 
+    def _get_param_names(self) -> List[str]:
+        return []
+
     def sample(self,
                uv: NDArray[(3, Any), float]) \
             -> Tuple[NDArray[(1, Any), float], NDArray[(Any,), bool]]:
@@ -70,6 +73,9 @@ class Cosine(Base):
 
     def _get_upper_bound(self) -> NDArray:
         return np.array([np.inf])  # k
+    
+    def _get_param_names(self) -> List[str]:
+        return ['k']
 
     def sample(self,
                uv: NDArray[(3, Any), float]) \
@@ -95,10 +101,10 @@ class LUT(Base):
         self._angles = np.linspace(0, np.radians(90), step)
         self._values = np.cos(self._angles) ** 2.0
 
-    def _get_params(self) -> List:
+    def _get_params(self) -> List[float]:
         return self._values.tolist()[1:]
 
-    def _set_params(self, a: List) -> None:
+    def _set_params(self, a: List[float]) -> None:
         self._values[1:] = np.clip(np.array(a), 0, None)
 
     def _get_lower_bound(self) -> NDArray:
@@ -106,6 +112,9 @@ class LUT(Base):
 
     def _get_upper_bound(self) -> NDArray:
         return np.repeat(1, self.num_params)
+    
+    def _get_param_names(self) -> List[str]:
+        return [f'value_{i}' for i in range(1, self.num_params + 1)]
 
     def sample(self,
                uv: NDArray[(3, Any), float]) \

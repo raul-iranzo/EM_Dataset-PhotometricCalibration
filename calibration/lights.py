@@ -145,7 +145,7 @@ class SpotLightSource(Base):
                 offsets.append(sample_point)
         return np.hstack(offsets)
 
-    def _get_params(self) -> List:
+    def _get_params(self) -> List[float]:
         params = [self.sigma]
         params += [self.mu]
         params += self.P.flatten().tolist()[0:3]
@@ -158,7 +158,7 @@ class SpotLightSource(Base):
         self.P = np.array(a[2:5] + [1, ]).reshape(4, 1)
         self.D = utils.sphere2cartesian(a[5], a[6])
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0,        # sigma
                          0,        # mu
                          -np.inf,  # P_x
@@ -168,7 +168,7 @@ class SpotLightSource(Base):
                          0,        # D_phi (azm)
                          ])
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf,   # sigma
                          np.inf,   # mu
                          np.inf,   # P_x
@@ -177,6 +177,9 @@ class SpotLightSource(Base):
                          np.pi/2,  # D_theta (elv)
                          2*np.pi,  # D_phi (azm)
                          ])
+    
+    def _get_param_names(self) -> List[str]:
+        return ['sigma', 'mu', 'P_x', 'P_y', 'P_z', 'D_theta', 'D_phi']
 
     @property
     def T_cl(self) -> NDArray[(4, 4), float]:
@@ -210,7 +213,7 @@ class NormalizedSpotLightSource(SpotLightSource):
         self.P = np.array(a[1:4] + [1, ]).reshape(4, 1)
         self.D = utils.sphere2cartesian(a[4], a[5])
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0,        # mu
                          -np.inf,  # P_x
                          -np.inf,  # P_y
@@ -219,7 +222,7 @@ class NormalizedSpotLightSource(SpotLightSource):
                          0,        # D_phi (azm)
                          ])
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf,   # mu
                          np.inf,   # P_x
                          np.inf,   # P_y
@@ -227,6 +230,9 @@ class NormalizedSpotLightSource(SpotLightSource):
                          np.pi/2,  # D_theta (elv)
                          2*np.pi,  # D_phi (azm)
                          ])
+    
+    def _get_param_names(self) -> List[str]:
+        return ['mu', 'P_x', 'P_y', 'P_z', 'D_theta', 'D_phi']
 
 
 class SpotLightSource2D(SpotLightSource):
@@ -245,7 +251,7 @@ class SpotLightSource2D(SpotLightSource):
         self.P = np.array(a[2:4] + [0, 1]).reshape(4, 1)
         self.D = utils.sphere2cartesian(a[4], a[5])
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0,        # sigma
                          0,        # mu
                          -np.inf,  # P_x
@@ -254,7 +260,7 @@ class SpotLightSource2D(SpotLightSource):
                          0,        # D_phi (azm)
                          ])
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf,   # sigma
                          np.inf,   # mu
                          np.inf,   # P_x
@@ -262,6 +268,9 @@ class SpotLightSource2D(SpotLightSource):
                          np.pi/2,  # D_theta (elv)
                          2*np.pi,  # D_phi (azm)
                          ])
+    
+    def _get_param_names(self) -> List[str]:
+        return ['sigma', 'mu', 'P_x', 'P_y', 'D_theta', 'D_phi']
 
 
 class NormalizedSpotLightSource2D(SpotLightSource):
@@ -278,7 +287,7 @@ class NormalizedSpotLightSource2D(SpotLightSource):
         self.P = np.array(a[1:3] + [0, 1]).reshape(4, 1)
         self.D = utils.sphere2cartesian(a[3], a[4])
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0,        # mu
                          -np.inf,  # P_x
                          -np.inf,  # P_y
@@ -286,13 +295,16 @@ class NormalizedSpotLightSource2D(SpotLightSource):
                          0,        # D_phi (azm)
                          ])
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf,   # mu
                          np.inf,   # P_x
                          np.inf,   # P_y
                          np.pi/2,  # D_theta (elv)
                          2*np.pi,  # D_phi (azm)
                          ])
+    
+    def _get_param_names(self) -> List[str]:
+        return ['mu', 'P_x', 'P_y', 'D_theta', 'D_phi']
 
 
 class FixedSpotLightSource(SpotLightSource):
@@ -309,19 +321,22 @@ class FixedSpotLightSource(SpotLightSource):
         self.mu = a[1]
         self.D = utils.sphere2cartesian(a[2], a[3])
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0,        # sigma
                          0,        # mu
                          0,        # D_theta (elv)
                          0,        # D_phi (azm)
                          ])
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf,   # sigma
                          np.inf,   # mu
                          np.pi/2,  # D_theta (elv)
                          2*np.pi,  # D_phi (azm)
                          ])
+    
+    def _get_param_names(self) -> List[str]:
+        return ['sigma', 'mu', 'D_theta', 'D_phi']
 
 
 class NormalizedFixedSpotLightSource(SpotLightSource):
@@ -336,17 +351,20 @@ class NormalizedFixedSpotLightSource(SpotLightSource):
         self.mu = a[0]
         self.D = utils.sphere2cartesian(a[1], a[2])
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0,        # mu
                          0,        # D_theta (elv)
                          0,        # D_phi (azm)
                          ])
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf,   # mu
                          np.pi/2,  # D_theta (elv)
                          2*np.pi,  # D_phi (azm)
                          ])
+    
+    def _get_param_names(self) -> List[str]:
+        return ['mu', 'D_theta', 'D_phi']
 
 
 class ZFixedSpotLightSource(SpotLightSource):
@@ -361,15 +379,18 @@ class ZFixedSpotLightSource(SpotLightSource):
         self.sigma = a[0]
         self.mu = a[1]
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0,        # sigma
                          0,        # mu
                          ])
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf,   # sigma
                          np.inf,   # mu
                          ])
+    
+    def _get_param_names(self) -> List[str]:
+        return ['sigma', 'mu']
 
 
 class NormalizedZFixedSpotLightSource(SpotLightSource):
@@ -382,11 +403,14 @@ class NormalizedZFixedSpotLightSource(SpotLightSource):
     def _set_params(self, a: List) -> None:
         self.mu = a[0]
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0])  # mu
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf])  # mu
+    
+    def _get_param_names(self) -> List[str]:
+        return ['mu']
 
 
 class FixedPointLightSource(SpotLightSource):
@@ -398,11 +422,14 @@ class FixedPointLightSource(SpotLightSource):
     def _set_params(self, a: List) -> None:
         self.sigma = a[0]
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.array([0])  # sigma
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.array([np.inf])  # sigma
+    
+    def _get_param_names(self) -> List[str]:
+        return ['sigma']
 
 
 class NormalizedFixedPointLightSource(SpotLightSource):
@@ -414,8 +441,11 @@ class NormalizedFixedPointLightSource(SpotLightSource):
     def _set_params(self, a: List) -> None:
         pass
 
-    def _get_lower_bound(self) -> NDArray:
+    def _get_lower_bound(self) -> np.ndarray:
         return np.empty(0)
 
-    def _get_upper_bound(self) -> NDArray:
+    def _get_upper_bound(self) -> np.ndarray:
         return np.empty(0)
+
+    def _get_param_names(self) -> List[str]:
+        return []

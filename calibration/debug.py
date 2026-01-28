@@ -4,6 +4,7 @@ from nptyping import NDArray
 import cv2
 import numpy as np
 from matplotlib import patches, pyplot as plt
+from mpl_toolkits.axes_grid1 import ImageGrid
 import scipy.stats as stats
 import copy
 from config_globals import ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M
@@ -294,7 +295,7 @@ def sourcesOnEndoscope(axs: plt.Axes,
 
 
 def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
-    fig, axs = getSquaredGrid(
+    fig, axs = getSquaredGrid_Legacy(
         len(renderer.sources) + 3, orientation='portrait')
     uv = renderer.camera.sample()
     vignetting, valid = renderer.camera.vignetting.sample(uv)
@@ -377,7 +378,7 @@ def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
     axs[-1].set_ylabel('Z')
 
 
-def getSquaredGrid(n: int, title: str = '', orientation: str = 'landscape'):
+def getSquaredGrid_Legacy(n: int, title: str = '', orientation: str = 'landscape'):
     if orientation == 'landscape':
         fig, axs = plt.subplots(
             np.floor(np.sqrt(n)).astype(int),
@@ -392,6 +393,32 @@ def getSquaredGrid(n: int, title: str = '', orientation: str = 'landscape'):
     for ax in axs[n:]:
         ax.remove()
     fig.suptitle(title)
+    return fig, axs[:n]
+
+def getSquaredGrid(n: int, title: str = '', orientation: str = 'portrait', cbar_location: str = "right"):
+    if orientation == 'landscape':
+        nrows = np.floor(np.sqrt(n)).astype(int)
+        ncols = np.ceil(n / nrows).astype(int)
+    elif orientation == 'portrait':
+        nrows = np.ceil(np.sqrt(n)).astype(int)
+        ncols = np.ceil(n / nrows).astype(int)
+    else:
+        raise ValueError(f'orientation \'{orientation}\' unknown.') 
+    fig = plt.figure()
+    grid = ImageGrid(fig, 111,          # as in plt.subplot(111)
+                 nrows_ncols=(nrows,ncols),
+                 axes_pad=0.15,
+                 share_all=True,
+                 cbar_location=cbar_location,
+                 cbar_mode="single",
+                 cbar_size="7%",
+                 cbar_pad=0.15,
+                 )
+    axs = grid.axes_all
+    for ax in axs[n:]:
+        ax.remove()
+    fig.suptitle(title)
+    fig.tight_layout()
     return fig, axs[:n]
 
 
@@ -525,3 +552,28 @@ def checkIfThreeLightsAreWorthIt(
         plt.show()
     else:
         raise ValueError(f'Invalid debug mode: {mode}')
+
+
+def plotTwinHistograms(y1, y2, colors=['tab:blue', 'tab:orange'], xlabel='Value', ylabel1='Count', ylabel2='Count', title='Histogram Comparison', bins=None, alpha=1.0):
+    
+    #sets up the axis and gets histogram data
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    n, bins_, _ = ax1.hist([y1, y2], bins=bins)
+    ax1.cla() #clear the axis
+
+    #plots the histogram data
+    width = (bins_[1] - bins_[0]) * 0.4
+    bins_shifted = [b + width for b in bins_]
+    ax1.bar(bins_[:-1], n[0], width, align='edge', color=colors[0], alpha=alpha)
+    ax2.bar(bins_shifted[:-1], n[1], width, align='edge', color=colors[1], alpha=alpha)
+
+    #finishes the plot
+    ax1.tick_params('y', colors=colors[0])
+    ax2.tick_params('y', colors=colors[1])
+    ax1.set_xlabel(xlabel)
+    ax1.set_ylabel(ylabel1, color=colors[0])
+    ax2.set_ylabel(ylabel2, color=colors[1])
+    fig.suptitle(title)
+    fig.tight_layout()
+    return fig, ax1, ax2

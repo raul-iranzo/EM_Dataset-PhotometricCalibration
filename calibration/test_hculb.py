@@ -17,8 +17,8 @@ import patterns
 from renderers import Basic
 import utils
 import config_globals
-from config_globals import ENDOSCOPE_LIGHT_DIAMETERS_M, FRAME_COUNT, LIGHT_AREA_SAMPLING_LEVEL, MAX_DISTANCE_TO_PATTERN_M, MIN_DISTANCE_TO_PATTERN_M, RESULTS_NAME, OPTIMIZE_LIGHT, \
-    SAMPLING_STRATEGY, SAMPLING_ARGUMENTS, SIGMA_EST, IMREAD_GAUSSIANBLUR_KSIZE, \
+from config_globals import ENDOSCOPE_LIGHT_DIAMETERS_M, FRAME_COUNT, OPTIMIZE_LIGHT_AREA_SAMPLING_LEVEL, FRAME_MAX_DISTANCE_TO_PATTERN_M, FRAME_MIN_DISTANCE_TO_PATTERN_M, OPTIMIZE_LIGHT_INITIAL_D, OPTIMIZE_LIGHT_INITIAL_MU, RESULTS_NAME, OPTIMIZE_LIGHT, \
+    SAMPLING_STRATEGY, SAMPLING_ARGUMENTS, HUBER_SIGMA_EST, IMREAD_GAUSSIANBLUR_KSIZE, \
     ENDOSCOPE_DISTAL_END_IMAGE, ENDOSCOPE_DISTAL_END_IMAGE_CENTER, \
     ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M, ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX, \
     ENDOSCOPE_LIGHT_CENTERS
@@ -44,8 +44,8 @@ data = os.path.join(path, f'{sequence}_frames')
 frame_ids, frame_poses = file_io.read_trajectory(
     os.path.join(path, f'{sequence}_poses.csv'))
 frame_ids = sorted(frame_ids, key=lambda t: frame_poses[t][2, 3])
-min_z = MIN_DISTANCE_TO_PATTERN_M or frame_poses[frame_ids[0]][2, 3]
-max_z = MAX_DISTANCE_TO_PATTERN_M or frame_poses[frame_ids[-1]][2, 3]
+min_z = FRAME_MIN_DISTANCE_TO_PATTERN_M or frame_poses[frame_ids[0]][2, 3]
+max_z = FRAME_MAX_DISTANCE_TO_PATTERN_M or frame_poses[frame_ids[-1]][2, 3]
 frame_count = FRAME_COUNT if isinstance(FRAME_COUNT, list) else [1,] * FRAME_COUNT
 lim_z = np.linspace(min_z, max_z, len(frame_count) + 1)
 selected_frame_ids = []
@@ -61,17 +61,11 @@ for fc, l, r in zip(frame_count, lim_z[:-1], lim_z[1:]):
                                              replace=False)
     selected_frame_ids += frame_ids_chosen.tolist()
 
-plt.figure()
-plt.title('Frames distance to pattern')
-plt.hist([frame_poses[t][2, 3] * 1000 for t in frame_ids], bins=30, alpha=0.5, label='All frames')
+# DEBUG: Histogram of heights over pattern
+data_hist_z = np.array([-frame_poses[t][2, 3] for t in frame_ids])
+
+# Sort selected frames by distance to pattern
 frame_ids = sorted(selected_frame_ids, key=lambda t: frame_poses[t][2, 3])
-plt.plot([frame_poses[t][2, 3] * 1000 for t in frame_ids], np.zeros(len(frame_ids)), 'rx', label='Selected frames')
-plt.xlabel('Distance to pattern (mm)')
-plt.ylabel('Count')
-plt.legend()
-plt.pause(1)
-
-
 
 pattern = patterns.Factory.fromXML(os.path.join(path, f'{sequence}_pattern.xml'))
 T_wp = pattern.T_wp
@@ -80,6 +74,40 @@ T_pw = np.linalg.inv(T_wp)
 camera = cameras.Factory.fromXML(
     os.path.join(path, f'{sequence}_geometrical.xml'),
     os.path.join(path, f'{sequence}_mask.png'))
+
+def get_light_source(name: str, **kwargs) -> lights.Base:
+    if name == 'NFSLS':
+        return lights.NormalizedFixedSpotLightSource(**kwargs)
+    elif name == 'NZFSLS':
+        return lights.NormalizedZFixedSpotLightSource(**kwargs)
+    elif name == 'NFPLS':
+        return lights.NormalizedFixedPointLightSource(**kwargs)
+    elif name == 'NSLS':
+        return lights.NormalizedSpotLightSource(**kwargs)
+    elif name == 'NSLS2D':
+        return lights.NormalizedSpotLightSource2D(**kwargs)
+    elif name == 'ZFSLS':
+        return lights.ZFixedSpotLightSource(**kwargs)
+    elif name == 'FSLS':
+        return lights.FixedSpotLightSource(**kwargs)
+    elif name == 'FPLS':
+        return lights.FixedPointLightSource(**kwargs)
+    elif name == 'SLS':
+        return lights.SpotLightSource(**kwargs)
+    elif name == 'SLS2D':
+        return lights.SpotLightSource2D(**kwargs)
+    else:
+        raise ValueError(f'Invalid light source model: {name}')
+
+sources = []
+for i in range(len(OPTIMIZE_LIGHT)):
+    source = get_light_source(name=OPTIMIZE_LIGHT[i],
+                                mu=OPTIMIZE_LIGHT_INITIAL_MU[i],
+                                P=ENDOSCOPE_LIGHT_CENTERS[i],
+                                D=np.array(OPTIMIZE_LIGHT_INITIAL_D[i]),
+                                radius=ENDOSCOPE_LIGHT_DIAMETERS_M[i] / 2,
+                                area_sampling_resolution=OPTIMIZE_LIGHT_AREA_SAMPLING_LEVEL[i])
+    sources.append(source)
 
 def debugSourcesOnEndoscope(axs: plt.Axes,
                             sources: List[lights.Base]):
@@ -90,44 +118,11 @@ def debugSourcesOnEndoscope(axs: plt.Axes,
                              ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M)
     axs.legend()
 
+# DEBUG: plot all light sources in the endoscope
+fig, axs = plt.subplots(1, 1)
+axs.set_title('Init')
+debugSourcesOnEndoscope(axs, sources)
 
-if OPTIMIZE_LIGHT == 'SINGLE_NFSLS':
-    sources = [lights.NormalizedFixedSpotLightSource()]
-elif OPTIMIZE_LIGHT == 'SINGLE_NZFSLS':
-    sources = [lights.NormalizedZFixedSpotLightSource()]
-elif OPTIMIZE_LIGHT == 'SINGLE_NFPLS':
-    sources = [lights.NormalizedFixedPointLightSource()]
-elif OPTIMIZE_LIGHT == 'SINGLE_NSLS':
-    sources = [lights.NormalizedSpotLightSource()]
-elif OPTIMIZE_LIGHT == 'SINGLE_NSLS2D':
-    sources = [lights.NormalizedSpotLightSource2D()]
-elif OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS', 'TRI_ANFZESLS']:
-    z = np.array([[0], [0], [1], [0]])
-    mu_value = 0.0  # Common for all lights
-    sources = [
-        lights.NormalizedZFixedSpotLightSource(mu=mu_value,
-                                              P=ENDOSCOPE_LIGHT_CENTERS[0],
-                                              D=np.copy(z),
-                                              radius=ENDOSCOPE_LIGHT_DIAMETERS_M[0] / 2 if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 0.0,
-                                              area_sampling_resolution=LIGHT_AREA_SAMPLING_LEVEL if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 1),
-        lights.NormalizedZFixedSpotLightSource(
-                                    mu=mu_value,
-                                    P=ENDOSCOPE_LIGHT_CENTERS[1],
-                                    D=np.copy(z),
-                                    radius=ENDOSCOPE_LIGHT_DIAMETERS_M[1] / 2 if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 0.0,
-                                    area_sampling_resolution=LIGHT_AREA_SAMPLING_LEVEL if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 1),
-        lights.NormalizedZFixedSpotLightSource(
-                                    mu=mu_value,
-                                    P=ENDOSCOPE_LIGHT_CENTERS[2],
-                                    D=np.copy(z),
-                                    radius=ENDOSCOPE_LIGHT_DIAMETERS_M[2] / 2 if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 0.0,
-                                    area_sampling_resolution=LIGHT_AREA_SAMPLING_LEVEL if OPTIMIZE_LIGHT == 'TRI_ANFZESLS' else 1)]
-    # DEBUG: plot all light sources in the endoscope
-    fig, axs = plt.subplots(1, 1)
-    axs.set_title('Init')
-    debugSourcesOnEndoscope(axs, sources)
-else:
-    raise ValueError(f'Invalid OPTIMIZE_LIGHT: \'{OPTIMIZE_LIGHT}\'')
 renderer = Basic(camera, sources, pattern)
 
 # debug.checkIfThreeLightsAreWorthIt(renderer, frame_ids, frame_poses, T_wp, data, mode='video')
@@ -135,14 +130,15 @@ renderer = Basic(camera, sources, pattern)
 if SAMPLING_STRATEGY == 'PATTERN':
     x_p = pattern.sample(**SAMPLING_ARGUMENTS)
     # DEBUG: plot all sample points in the Vicalib pattern
-    debug.plotPatternSample(pattern, **SAMPLING_ARGUMENTS)
+    # debug.plotPatternSample(pattern, **SAMPLING_ARGUMENTS)
 else:
     raise ValueError(f'Invalid SAMPLING_STRATEGY: \'{SAMPLING_STRATEGY}\'')
-plt.pause(2)
+plt.pause(1)
 
 n_frames = len(frame_ids)
 fig1, axs1 = debug.getSquaredGrid(n_frames, 'I')
 fig, axs = debug.getSquaredGrid(n_frames, 'I')
+fig2, axs2 = debug.getSquaredGrid(n_frames, 'I (pseudo-color)')
 
 # frames = []
 x_valid_list = []
@@ -151,6 +147,7 @@ x_uv_list = []
 T_wc_list = []
 I_gt_list = []
 gain_list = []
+data_hist_rays = []
 for i in tqdm(range(n_frames), 'Loading data'):
     frame_id = frame_ids[i]
     img_bgr = cv2.imread(os.path.join(data, f'{frame_id:06d}.png'))
@@ -204,6 +201,11 @@ for i in tqdm(range(n_frames), 'Loading data'):
                     x_w = np.delete(x_w, idxs_to_be_deleted, axis=1)
                     x_uv = np.delete(x_uv, idxs_to_be_deleted, axis=1)
                     x_valid = np.delete(x_valid, idxs_to_be_deleted, axis=0)
+
+    # DEBUG: histogram of distances to pattern points
+    dists = np.linalg.norm(x_w[0:3, x_valid] - T_wc[0:3, 3:4], axis=0)
+    data_hist_rays.append(dists)
+
     I_gt, _ = utils.interpolate(img_gray, x_uv[:, x_valid])
     I_hat, _ = renderer.x_w(x_w[:, x_valid], T_wc, T_wp, 1.0)
     I_hat = np.mean(I_hat, axis=0)[:, np.newaxis]
@@ -211,8 +213,11 @@ for i in tqdm(range(n_frames), 'Loading data'):
                      renderer.camera.inv_response(I_hat))
     gain = min(gain, 1/np.max(renderer.camera.inv_response(I_hat)))
 
-    axs1[i].imshow(img_gray[:, :, 0], cmap='gray', vmin=0, vmax=1)
-    axs[i].imshow(img_gray[:, :, 0], cmap='gray', vmin=0, vmax=1)
+    plt_gray = axs1[i].imshow(np.mean(img_gray, axis=2), cmap='gray', vmin=0, vmax=1)
+    plt_pseudo_color = axs2[i].imshow(np.mean(img_gray, axis=2), cmap='tab20', vmin=0, vmax=1)
+    plt_gray_alt = axs[i].imshow(np.mean(img_gray, axis=2), cmap='gray', vmin=0, vmax=1)
+    axs1[i].axis('off')
+    axs2[i].axis('off')
     axs[i].axis('off')
     axs[i].scatter(x_uv[0, x_valid], x_uv[1, x_valid],
                    s=[20 if v < 1e-6 else 0.05 for v in I_gt],
@@ -225,6 +230,15 @@ for i in tqdm(range(n_frames), 'Loading data'):
     T_wc_list.append(T_wc)
     I_gt_list.append(I_gt)
     gain_list.append(gain)
+axs1[0].cax.colorbar(plt_gray)
+axs1[0].cax.toggle_label(True)
+axs2[0].cax.colorbar(plt_pseudo_color)
+axs2[0].cax.toggle_label(True)
+axs[0].cax.colorbar(plt_gray_alt)
+axs[0].cax.toggle_label(True)
+fig.tight_layout()
+fig1.tight_layout()
+fig2.tight_layout()
 
 # Split train and test sets
 TRAIN_SET_PARTITION = 0.8
@@ -245,39 +259,64 @@ I_gt_list_test = [I_gt_list[i] for i in test_idx]
 gain_list_train = [gain_list[i] for i in train_idx]
 gain_list_test = [gain_list[i] for i in test_idx]
 
-for i in range(n_frames):
-    axs[i].set_title(f'{frame_ids[i]:06d}',
-                     fontdict={
-                         'fontsize': 'small',
-                         'color': 'red' if i in test_idx else 'black'})
-fig.tight_layout()
+for ax in [axs, axs1, axs2]:
+    for i in range(n_frames):
+        ax[i].set_title(f'{frame_ids[i]:06d}',
+                        pad=0.0,
+                        fontdict={
+                            'fontsize': 'small',
+                            'color': 'red' if i in test_idx else 'black'})
 plt.draw()
-plt.pause(5)
+plt.pause(1)
+
+# DEBUG: plot twin histograms of distances to pattern points
+data_hist_z_train = np.array([-frame_poses[frame_ids[t]][2, 3] for t in train_idx])
+data_hist_z_test = np.array([-frame_poses[frame_ids[t]][2, 3] for t in test_idx])
+
+data_hist_z = np.array(data_hist_z) * 1000  # to mm
+data_hist_rays = np.concatenate(data_hist_rays) * 1000  # to mm
+data_hist_z_train = np.array(data_hist_z_train) * 1000  # to mm
+data_hist_z_test = np.array(data_hist_z_test) * 1000  # to mm
+fig, ax1, ax2 = debug.plotTwinHistograms(data_hist_z, data_hist_rays, 
+                          bins=30,
+                          title='Histograms of distances',
+                          xlabel='Distance (mm)',
+                          ylabel1='FROM all cameras TO plane (# frames)',
+                          ylabel2='FROM visible points TO train/test cameras (# points)')
+ax2.plot(data_hist_z_train, np.zeros(len(data_hist_z_train)), 'kx', label='Train cameras')
+ax2.plot(data_hist_z_test, np.zeros(len(data_hist_z_test)), 'rx', label='Test cameras')
+fig.legend()
 
 fig1, axs1 = debug.getSquaredGrid(n_frames_train, title='I_init (train)')
+fig3, axs3 = debug.getSquaredGrid(n_frames_train, title='I_init (train, pseudo-color)')
 fig2, axs2 = debug.getSquaredGrid(n_frames_train, title='I_init - I (train)')
 
 for j, i in enumerate(tqdm(train_idx, 'Rendering')):
     render, valid = renderer.full(T_wc_list[i], T_wp, gain_list[i])
-    axs1[j].imshow(np.clip(render, 0, 1))
-    axs1[j].axis('off')
-    axs1[j].set_title(f'{frame_ids[i]:06d}',
-                      fontdict={
-                          'fontsize': 'small',
-                          'color': 'red' if i in test_idx else 'black'})
+    gray = axs1[j].imshow(np.clip(np.mean(render, axis=2), 0, 1), cmap='gray', vmin=0, vmax=1)
+    pseudo_color = axs3[j].imshow(np.clip(np.mean(render, axis=2), 0, 1), cmap='tab20', vmin=0, vmax=1)
+    for ax in [axs1[j], axs2[j], axs3[j]]:
+        ax.axis('off')
+        ax.set_title(f'{frame_ids[i]:06d}',
+                        pad=0.0,
+                        fontdict={
+                            'fontsize': 'small',
+                            'color': 'red' if i in test_idx else 'black'})
     frame = cv2.imread(os.path.join(data, f'{frame_ids[i]:06d}.png'))
     error = np.mean(render * 255 - frame, axis=2)[:, :, np.newaxis]
     error[np.logical_not(valid)] = 0
     error_map = axs2[j].imshow(error, vmin=-25, vmax=25, cmap='seismic')
-    axs2[j].axis('off')
-    axs2[j].set_title(f'{frame_ids[i]:06d}',
-                      fontdict={
-                          'fontsize': 'small',
-                          'color': 'red' if i in test_idx else 'black'})
-    plt.colorbar(error_map, ax=axs2[j])
+axs1[0].cax.colorbar(error_map)
+axs1[0].cax.toggle_label(True)
+axs2[0].cax.colorbar(error_map)
+axs2[0].cax.toggle_label(True)
+axs3[0].cax.colorbar(pseudo_color)
+axs3[0].cax.toggle_label(True)
 fig1.tight_layout()
+fig2.tight_layout()
+fig3.tight_layout()
 plt.draw()
-plt.pause(5)
+plt.pause(1)
 
 op_init = optimize.pack_op(renderer, gain_list_train)
 print(f'[INFO] Optimizing {len(op_init)} parameters...')
@@ -292,6 +331,20 @@ print('Initial Train Median Abs. Error:',
       np.median(np.abs((residuals_train * 255))))
 print('Initial Train RMSE:', np.sqrt(np.mean((residuals_train * 255) ** 2)))
 
+
+def debugJacSparsity():
+    sparsity = optimize.jac_sparsity(I_gt_list_train, op_init)
+    param_names = optimize.op_names(renderer, gain_list_train)
+    fig, ax = plt.subplots()
+    MAX_LINES = 20
+    plt.spy(sparsity[::max(1, sparsity.shape[0]//MAX_LINES)], markersize=1)
+    ax.set_xticks(np.arange(sparsity.shape[1]) + 0.5)
+    ax.set_xticklabels(param_names, rotation=90, ha="right")
+    ax.set_ylabel("Residual index")
+    ax.set_xlabel("Parameters")
+    ax.set_title("Jacobian sparsity pattern")
+
+debugJacSparsity()
 
 opt_time = 0
 opt_nfev = 0
@@ -308,7 +361,7 @@ else:
         xtol=1e-15, ftol=1e-15, gtol=1e-15,
         x_scale='jac',
         loss='huber',
-        f_scale=2 * SIGMA_EST,
+        f_scale=2 * HUBER_SIGMA_EST,
         max_nfev=50000,
         jac_sparsity=optimize.jac_sparsity(I_gt_list_train, op_init),
         verbose=2,
@@ -332,8 +385,7 @@ optimize.unpack_op(op_final, renderer, gain_list_train)
 print('camera.vignetting:', renderer.camera.vignetting.params)
 print('pattern.brdf:', renderer.pattern.brdf.params)
 for i in range(len(renderer.sources)):
-    print(f'sources[{i}].[mu]:',    # TODO Poner automático
-          renderer.sources[i].params)
+    print(f'sources[{i}].[{", ".join(renderer.sources[i].param_names)}]:', renderer.sources[i].params)
 print('gain:', gain_list_train)
 
 residuals_train = optimize.fun(op_final, x_w_list_train, x_valid_list_train,
@@ -371,6 +423,7 @@ plt.hist(residuals_test * 255, bins=range(-amax, amax), density=True,
 debug.plotGaussian(plt.gca(), residuals_test * 255)
 
 fig1, axs1 = debug.getSquaredGrid(n_frames, title='I_hat (final)')
+fig3, axs3 = debug.getSquaredGrid(n_frames, title='I_hat (final, pseudo-color)')
 fig2, axs2 = debug.getSquaredGrid(n_frames, title='I_hat - I (final)')
 
 error_hist = []
@@ -378,12 +431,15 @@ gain_list_hat = np.concatenate([gain_list_test, gain_list_train])
 for j, i in enumerate(tqdm(test_idx + train_idx, 'Rendering')):
 
     render, valid = renderer.full(T_wc_list[i], T_wp, gain_list_hat[j])
-    axs1[j].imshow(render)
-    axs1[j].axis('off')
-    axs1[j].set_title(f'{frame_ids[i]:06d}',
-                      fontdict={
-                          'fontsize': 'small',
-                          'color': 'red' if i in test_idx else 'black'})
+    plt_gray = axs1[j].imshow(np.mean(render, axis=2), cmap='gray', vmin=0, vmax=1)
+    plt_pseudo_color = axs3[j].imshow(np.mean(render, axis=2), cmap='tab20', vmin=0, vmax=1)
+    for ax in [axs1[j], axs2[j], axs3[j]]:
+        ax.axis('off')
+        ax.set_title(f'{frame_ids[i]:06d}',
+                        pad=0.0,
+                        fontdict={
+                            'fontsize': 'small',
+                            'color': 'red' if i in test_idx else 'black'})
     frame = cv2.imread(os.path.join(data, f'{frame_ids[i]:06d}.png'))
     error = np.mean(render * 255 - frame, axis=2)[:, :, np.newaxis]
     error_hist += [error[valid]]
@@ -407,8 +463,18 @@ for j, i in enumerate(tqdm(test_idx + train_idx, 'Rendering')):
     axs2[j].scatter(x_uv[0, x_valid], x_uv[1, x_valid],
                 s=[20 if v < 1e-6 else 0.05 for v in I_gt],
                 c=['r' if v < 1e-6 else 'g' for v in I_gt])
-    plt.colorbar(error_map, ax=axs2[j])
+
+axs1[0].cax.colorbar(plt_gray)
+axs1[0].cax.toggle_label(True)
+axs2[0].cax.colorbar(error_map)
+axs2[0].cax.toggle_label(True)
+axs3[0].cax.colorbar(plt_pseudo_color)
+axs3[0].cax.toggle_label(True)
 fig1.tight_layout()
+fig2.tight_layout()
+fig3.tight_layout()
+plt.draw()
+plt.pause(1)
 
 error_hist = np.concatenate(error_hist)
 plt.figure()
@@ -439,4 +505,4 @@ with open(os.path.join(path, f'{sequence}_output.txt'), 'w') as f:
     f.write(f'Final Test Median Abs. Error: {test_median}\n')
     f.write(f'Final Test RMSE: {test_rmse}\n')
 
-plt.pause(5)
+plt.pause(1)

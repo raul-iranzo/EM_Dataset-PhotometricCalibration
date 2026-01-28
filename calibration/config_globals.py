@@ -1,27 +1,25 @@
 # Light emission can be estimated for one or more sources
 # Available modes:
-#   - SINGLE_NFSLS
-#   - SINGLE_NZFSLS
-#   - SINGLE_NFPLS
-#   - SINGLE_NSLS
-#   - SINGLE_NSLS2D
-#   - TRI_NFSLS
-#   - TRI_NFZSLS
-#   - TRI_NFZESLS
-#   - TRI_ANFZESLS
+#   - NFSLS
+#   - NZFSLS
+#   - NFPLS
+#   - NSLS
+#   - NSLS2D
 #
 # Available generic models:
 #   - PLS: point light source
 #   - SLS: spot light source (with spread function)
 #
 # Availabel flags:
-#   - A: area light source (approximated with multiple point lights)
 #   - N: normalized radiance (emission at x is fixed)
-#   - F: fixed position (known pose wrt. camera or aligned to optical center)
 #   - Z: principal direction fixed to camera forward (SLS only)
-#   - E: light parameters are the same for all lights
-OPTIMIZE_LIGHT = 'TRI_NFZESLS'
-LIGHT_AREA_SAMPLING_LEVEL = 1  # only used for area lights
+#   - F: fixed position (known pose wrt. camera or aligned to optical center)
+
+OPTIMIZE_LIGHT = ['NFSLS', 'FSLS', 'FSLS']
+OPTIMIZE_LIGHT_INITIAL_MU = [1.35, 1.35, 1.35]  # initial spread factor for each light
+OPTIMIZE_LIGHT_INITIAL_D = [[[0], [0], [1], [0]], [[0], [0], [1], [0]], [[0], [0], [1], [0]]]
+OPTIMIZE_LIGHT_SHARED_PARAMS = ['mu']  # list of parameters names to share between all lights
+OPTIMIZE_LIGHT_AREA_SAMPLING_LEVEL = [0, 0, 0]  # for each source. set to 0 to disable
 
 # Bidirectional Reflectance Distribution Function (BRDF) is estimated for the
 # whole calibration pattern bet but is not a useful parameter.
@@ -69,19 +67,23 @@ SAMPLING_ARGUMENTS = {
                     #              (+0.25, -0.25), (+0.25, 0), (+0.25, +0.25)]
                       }
 
-# Frame skip
-MAX_DISTANCE_TO_PATTERN_M = 0.025  # meters
-MIN_DISTANCE_TO_PATTERN_M = 0.003  # meters
+# Frame selection parameters
 FRAME_COUNT = 48 # number of frames to use for calibration
+FRAME_MAX_DISTANCE_TO_PATTERN_M = 0.025  # meters
+FRAME_MIN_DISTANCE_TO_PATTERN_M = 0.003  # meters
+
+# Image pre-processing
+# Gaussian blur kernel size used to reduce noise in the images before
+# processing. Set to 0 to disable.
 IMREAD_GAUSSIANBLUR_KSIZE = 9
 
 # Estimated sigma for residual normalization (see Huber loss)
-SIGMA_EST = 1.4826 * 2.2584  # 1.4826 * median err.
+HUBER_SIGMA_EST = 1.4826 * 2.2584  # 1.4826 * median err.
 
 import os  # nopep8
 import numpy as np  # nopep8
 
-# Used only for debug plots
+# Endoscope distal end parameters
 CONFIG_PATH = os.path.dirname(os.path.realpath(__file__))
 ENDOSCOPE_DISTAL_END_IMAGE = os.path.join(CONFIG_PATH, 'images/CF-H190L.png')
 ENDOSCOPE_DISTAL_END_IMAGE_CENTER = (19.6185, 14.1445)
@@ -100,10 +102,26 @@ RESULTS_NAME = datetime.today().strftime("%Y%m%d.%H%M%S")
 def get_all():
     return {
         'OPTIMIZE_LIGHT': OPTIMIZE_LIGHT,
+        'OPTIMIZE_LIGHT_INITIAL_MU': OPTIMIZE_LIGHT_INITIAL_MU,
+        'OPTIMIZE_LIGHT_INITIAL_D': OPTIMIZE_LIGHT_INITIAL_D,
+        'OPTIMIZE_LIGHT_SHARED_PARAMS': OPTIMIZE_LIGHT_SHARED_PARAMS,
+        'OPTIMIZE_LIGHT_AREA_SAMPLING_LEVEL': OPTIMIZE_LIGHT_AREA_SAMPLING_LEVEL,
         'OPTIMIZE_BRDF': OPTIMIZE_BRDF,
         'OPTIMIZE_VIGNETTING': OPTIMIZE_VIGNETTING,
         'OPTIMIZE_GAIN': OPTIMIZE_GAIN,
         'SAMPLING_STRATEGY': SAMPLING_STRATEGY,
         'SAMPLING_ARGUMENTS': SAMPLING_ARGUMENTS,
         'FRAME_COUNT': FRAME_COUNT,
+        'FRAME_MAX_DISTANCE_TO_PATTERN_M': FRAME_MAX_DISTANCE_TO_PATTERN_M,
+        'FRAME_MIN_DISTANCE_TO_PATTERN_M': FRAME_MIN_DISTANCE_TO_PATTERN_M,
+        'IMREAD_GAUSSIANBLUR_KSIZE': IMREAD_GAUSSIANBLUR_KSIZE,
+        'HUBER_SIGMA_EST': HUBER_SIGMA_EST,
+        'CONFIG_PATH': CONFIG_PATH,
+        'ENDOSCOPE_DISTAL_END_IMAGE': ENDOSCOPE_DISTAL_END_IMAGE,
+        'ENDOSCOPE_DISTAL_END_IMAGE_CENTER': ENDOSCOPE_DISTAL_END_IMAGE_CENTER,
+        'ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M': ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_M,
+        'ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX': ENDOSCOPE_DISTAL_END_OUTER_DIAMETER_PX,
+        'ENDOSCOPE_LIGHT_DIAMETERS_M': ENDOSCOPE_LIGHT_DIAMETERS_M,
+        'ENDOSCOPE_LIGHT_CENTERS': ENDOSCOPE_LIGHT_CENTERS,
+        'RESULTS_NAME': RESULTS_NAME,
     }
