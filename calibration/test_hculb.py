@@ -306,7 +306,7 @@ for j, i in enumerate(tqdm(train_idx, 'Rendering')):
     error = np.mean(render * 255 - frame, axis=2)[:, :, np.newaxis]
     error[np.logical_not(valid)] = 0
     error_map = axs2[j].imshow(error, vmin=-25, vmax=25, cmap='seismic')
-axs1[0].cax.colorbar(error_map)
+axs1[0].cax.colorbar(gray)
 axs1[0].cax.toggle_label(True)
 axs2[0].cax.colorbar(error_map)
 axs2[0].cax.toggle_label(True)
@@ -404,7 +404,7 @@ if OPTIMIZE_LIGHT in ['TRI_NFZESLS', 'TRI_NFZSLS']:
     axs.set_title('Final')
     debugSourcesOnEndoscope(axs, renderer.sources)
 
-residuals_test, gain_list_test = optimize.eval_test(x_w_list_test, x_valid_list_test,
+residuals_test, I_hats, gain_list_test = optimize.eval_test(x_w_list_test, x_valid_list_test,
                                                     T_wc_list_test, T_wp, I_gt_list_test,
                                                     renderer, gain_list_test)
 
@@ -422,13 +422,21 @@ plt.hist(residuals_test * 255, bins=range(-amax, amax), density=True,
          edgecolor='steelblue', linewidth=1, color='powderblue')
 debug.plotGaussian(plt.gca(), residuals_test * 255)
 
+x_c_list_test = [np.linalg.inv(T_wc) @ x_w[:, x_valid] for x_w, x_valid, T_wc in zip(x_w_list_test, x_valid_list_test, T_wc_list_test)]
+debug.showCorrPlot(np.squeeze(np.concatenate(I_gt_list_test)) * 255, I_hats * 255, max_value=255)
+debug.showResidualsWrtDistanceToPoint(np.abs(residuals_test) * 255, np.concatenate(x_c_list_test, axis=1))
+
 fig1, axs1 = debug.getSquaredGrid(n_frames, title='I_hat (final)')
 fig3, axs3 = debug.getSquaredGrid(n_frames, title='I_hat (final, pseudo-color)')
 fig2, axs2 = debug.getSquaredGrid(n_frames, title='I_hat - I (final)')
 
 error_hist = []
 gain_list_hat = np.concatenate([gain_list_test, gain_list_train])
-for j, i in enumerate(tqdm(test_idx + train_idx, 'Rendering')):
+all_idx = test_idx + train_idx
+sorted_indices = np.argsort(all_idx)
+gain_list_hat = gain_list_hat[sorted_indices]
+sorted_all_idx = np.array(all_idx)[sorted_indices]
+for j, i in enumerate(tqdm(sorted_all_idx, 'Rendering')):
 
     render, valid = renderer.full(T_wc_list[i], T_wp, gain_list_hat[j])
     plt_gray = axs1[j].imshow(np.mean(render, axis=2), cmap='gray', vmin=0, vmax=1)

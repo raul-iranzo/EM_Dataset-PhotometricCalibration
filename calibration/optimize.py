@@ -135,17 +135,24 @@ def fun(op: NDArray[(Any, ), float],
         I_gt: List[NDArray[(Any, 1), float]],
         renderer: renderers.Basic,
         gain: List[float],
-        unpack_op=unpack_op):
+        unpack_op=unpack_op,
+        return_I_hats: bool = False):
     n_frames = len(gain)
     gain_ = np.copy(gain)
     unpack_op(op, renderer, gain_)
+    I_hats = []
     residuals = []
     for i in range(n_frames):
         I_hat, _ = renderer.x_w(
             x_w[i][:, x_valid[i]], T_wc[i], T_wp, gain_[i])
         I_hat = np.mean(I_hat, axis=0)[:, np.newaxis]
         residuals.append(I_hat - I_gt[i])
-    return np.squeeze(np.concatenate(residuals))
+        I_hats.append(I_hat)
+    if return_I_hats:
+        return np.squeeze(np.concatenate(residuals)), \
+            np.squeeze(np.concatenate(I_hats))
+    else:
+        return np.squeeze(np.concatenate(residuals))
 
 
 def fun_debug(op: NDArray[(Any, ), float],
@@ -213,6 +220,7 @@ def eval_test(x_w: List[NDArray[(4, Any), float]],
     )
     op_final = result.x
     unpack_op_test(op_final, None, gain_)
-    residuals = fun(op_final, x_w, x_valid,
-                    T_wc, T_wp, I_gt, renderer, gain_, unpack_op_test)
-    return residuals, gain_
+    residuals, I_hats = fun(op_final, x_w, x_valid,
+                    T_wc, T_wp, I_gt, renderer, gain_, unpack_op_test, 
+                    return_I_hats=True)
+    return residuals, I_hats, gain_

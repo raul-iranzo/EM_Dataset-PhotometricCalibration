@@ -68,8 +68,8 @@ SAMPLING_ARGUMENTS = {
                       }
 
 # Frame selection parameters
-FRAME_COUNT = 48 # number of frames to use for calibration
-FRAME_MAX_DISTANCE_TO_PATTERN_M = 0.025  # meters
+FRAME_COUNT = [2,4,8,12,8,4,2,1,1,1,1,1,1,1,1] # number of frames to use for calibration
+FRAME_MAX_DISTANCE_TO_PATTERN_M = 0.015  # meters
 FRAME_MIN_DISTANCE_TO_PATTERN_M = 0.003  # meters
 
 # Image pre-processing

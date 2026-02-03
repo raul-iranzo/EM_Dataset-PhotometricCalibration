@@ -304,9 +304,10 @@ def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
                   renderer.camera.resolution[0, 0])
     vig_show = axs[0].imshow(vignetting.reshape(resolution))
     plt.colorbar(vig_show, ax=axs[0])
-    axs[0].plot(renderer.camera.Cx, renderer.camera.Cy, 'xk', label='Z')
+    axs[0].plot(renderer.camera.Cx, renderer.camera.Cy, 'xk')
+    axs[0].text(renderer.camera.Cx, renderer.camera.Cy, '$Z$',
+                color='k', fontsize=8)
     axs[0].set_title('Vignetting')
-    axs[0].legend()
 
     ray, mask = renderer.camera.unproject(uv)
     T_wc = np.eye(4)
@@ -318,12 +319,15 @@ def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
         l[:, np.logical_not(mask)] = 0.0
         l_show = ax.imshow(l.reshape(resolution))
         plt.colorbar(l_show, ax=ax)
-        ax.plot(renderer.camera.Cx, renderer.camera.Cy, 'xk', label='Z')
+        ax.plot(renderer.camera.Cx, renderer.camera.Cy, 'xk')
         D_uv, _ = renderer.camera.project(T_wc[:, 3:4] + source.D)
-        ax.plot(D_uv[0, 0], D_uv[1, 0], '.k', label='D')
+        ax.plot(D_uv[0, 0], D_uv[1, 0], '.k')
+        ax.text(renderer.camera.Cx, renderer.camera.Cy, '$Z$',
+                color='k', fontsize=8)
+        ax.text(D_uv[0, 0], D_uv[1, 0], f'$D, \sigma={source.sigma:.2f}$', 
+                color='k', fontsize=8)
         deg = np.degrees(np.arccos(source.D[2, 0]))
-        ax.set_title(f'Light {i} @ ${deg:.1f}^\circ$')
-        ax.legend()
+        ax.set_title(f'Light {i} @ ${deg:.1f}^\circ$', fontsize=10)
 
     MARGIN = 0.15
     axs[-2].margins(MARGIN)
@@ -338,13 +342,14 @@ def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
                  rotation=0, horizontalalignment='center', verticalalignment='bottom')
     axs[-2].text(0.5, 1, 'Up', transform=axs[-2].transAxes,
                  rotation=0, horizontalalignment='center', verticalalignment='top')
-    axs[-2].plot(0, 0, 'xk', label='C')
+    axs[-2].plot(0, 0, 'xk')
+    axs[-2].text(0, 0, 'C', color='k', fontsize=8)
     for i, source in enumerate(renderer.sources):
-        axs[-2].plot(source.P[0, 0] * 1000, source.P[1, 0] * 1000,
-                     '.', label=f'L{i}')
+        axs[-2].plot(source.P[0, 0] * 1000, source.P[1, 0] * 1000, '.')
+        axs[-2].text(source.P[0, 0] * 1000, source.P[1, 0] * 1000,
+                     f'L{i}', color='k', fontsize=8)
     axs[-2].set_aspect('equal', 'box')
     axs[-2].invert_yaxis()
-    axs[-2].legend()
     axs[-2].set_title('Displacement XY (mm)')
     axs[-2].set_xlabel('X')
     axs[-2].set_ylabel('Y')
@@ -362,17 +367,18 @@ def show2DVignettingAndLightSpread(op_final, renderer: renderers.Basic):
                  rotation=0, horizontalalignment='center', verticalalignment='bottom')
     axs[-1].text(0.5, 1, 'Front', transform=axs[-1].transAxes,
                  rotation=0, horizontalalignment='center', verticalalignment='top')
-    axs[-1].plot(0, 0, 'xk', label='C')
+    axs[-1].plot(0, 0, 'xk')
+    axs[-1].text(0, 0, 'C', color='k', fontsize=8)
     for i, source in enumerate(renderer.sources):
-        axs[-1].plot(source.P[0, 0] * 1000, source.P[2, 0] * 1000,
-                     '.', label=f'L{i}')
+        axs[-1].plot(source.P[0, 0] * 1000, source.P[2, 0] * 1000, '.')
+        axs[-1].text(source.P[0, 0] * 1000, source.P[2, 0] * 1000,
+                     f'L{i}', color='k', fontsize=8)
     axs[-1].set_aspect('equal', 'box')
     xlim = max([abs(lim) for lim in axs[-1].get_xlim()])
     ylim = max([abs(lim) for lim in axs[-1].get_ylim()])
     lim = max(xlim, ylim)
     axs[-1].set_xlim(left=-lim, right=lim)
     axs[-1].set_ylim(bottom=-lim, top=lim)
-    axs[-1].legend()
     axs[-1].set_title('Displacement XZ (mm)')
     axs[-1].set_xlabel('X')
     axs[-1].set_ylabel('Z')
@@ -577,3 +583,24 @@ def plotTwinHistograms(y1, y2, colors=['tab:blue', 'tab:orange'], xlabel='Value'
     fig.suptitle(title)
     fig.tight_layout()
     return fig, ax1, ax2
+
+def showCorrPlot(image, render, max_value=1.0):
+    plt.figure()
+    plt.scatter(image.flatten(), render.flatten(), c='k', s=1)
+    plt.xlabel('Image Intensity')
+    plt.ylabel('Render Intensity')
+    plt.title('Correlation Plot (x_w_test)')
+    lims = [0, max_value]
+    plt.xlim(lims)
+    plt.ylim(lims)
+    plt.plot(lims, lims, '--r')  # unity line
+    plt.grid()
+
+def showResidualsWrtDistanceToPoint(residuals, x_c):
+    plt.figure()
+    dst = np.linalg.norm(x_c[0:3, :], axis=0)
+    plt.scatter(dst, residuals, c='k', s=1)
+    plt.xlabel('Distance to Camera Center (m)')
+    plt.ylabel('Residual Intensity')
+    plt.title('Residuals vs Distance (x_w_test)')
+    plt.grid()
