@@ -130,7 +130,7 @@ renderer = Basic(camera, sources, pattern)
 if SAMPLING_STRATEGY == 'PATTERN':
     x_p = pattern.sample(**SAMPLING_ARGUMENTS)
     # DEBUG: plot all sample points in the Vicalib pattern
-    # debug.plotPatternSample(pattern, **SAMPLING_ARGUMENTS)
+    debug.plotPatternSample(pattern, **SAMPLING_ARGUMENTS)
 else:
     raise ValueError(f'Invalid SAMPLING_STRATEGY: \'{SAMPLING_STRATEGY}\'')
 plt.pause(1)

@@ -264,8 +264,16 @@ def plotPatternSample(pattern, **kwargs):
         plot_x_p = (pattern.sample(**kwargs) + pattern.large_rad) * m2px
     else:
         plot_x_p = (pattern.sample(**kwargs) + pattern.spacing) * m2px
+
+    centroid = np.mean(plot_x_p, axis=1)
+    closest_idx = np.argsort(np.linalg.norm(plot_x_p - centroid[:, np.newaxis], axis=0)) 
+    plot_x_p = plot_x_p[:, closest_idx[:int(1e4)]]
+
     plt.imshow(pattern._mask)
     plt.scatter(plot_x_p[0], plot_x_p[1], c='r', s=10)
+    # zoom the figure to the central area where there are false values on the mask
+    plt.xlim(pattern._size[0] * m2px * 0.25, pattern._size[0] * m2px * 0.75)
+    plt.ylim(pattern._size[1] * m2px * 0.25, pattern._size[1] * m2px * 0.75)
     plt.axis('equal')
 
 

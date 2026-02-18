@@ -132,7 +132,7 @@ class Vicalib:
 
         return albedo, valid
 
-    def sample(self, margin: int = 0, **kwargs) \
+    def sample(self, margin: int = 0, level: int = 0, **kwargs) \
             -> NDArray[(4, Any), float]:
         ''' Get sample points on the pattern '''
         if type(margin) == tuple or type(margin) == list:
@@ -159,10 +159,17 @@ class Vicalib:
         x_p = self.spacing / 2 + \
             np.mgrid[tl[0]:br[0]:self.spacing,
                      tl[1]:br[1]:self.spacing]
-        x_p = x_p.reshape(2, -1)
-        x_p = np.r_[x_p, np.zeros((1, x_p.shape[1])),
-                    np.ones((1, x_p.shape[1]))]
-        return x_p
+        x_p_flatten = x_p.reshape(2, -1)
+        for i in range(1, 2**level):
+            x_p_new_h = ((2**level-i) * x_p[:, :-1, :] + (i) * x_p[:, 1:, :]) / (2**level)
+            x_p_new_v = ((2**level-i) * x_p[:, :, :-1] + (i) * x_p[:, :, 1:]) / (2**level)
+            x_p_flatten = np.concatenate([x_p_flatten,
+                                        x_p_new_h.reshape(2, -1),
+                                        x_p_new_v.reshape(2, -1)], axis=1)
+            
+        x_p_flatten = np.r_[x_p_flatten, np.zeros((1, x_p_flatten.shape[1])),
+                    np.ones((1, x_p_flatten.shape[1]))]
+        return x_p_flatten
 
 class Checkerboard(Vicalib):
     ''' Checkerboard pattern 

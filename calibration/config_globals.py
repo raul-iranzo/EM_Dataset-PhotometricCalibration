@@ -18,8 +18,8 @@
 OPTIMIZE_LIGHT = ['NFSLS', 'FSLS', 'FSLS']
 OPTIMIZE_LIGHT_INITIAL_MU = [1.35, 1.35, 1.35]  # initial spread factor for each light
 OPTIMIZE_LIGHT_INITIAL_D = [[[0], [0], [1], [0]], [[0], [0], [1], [0]], [[0], [0], [1], [0]]]
-OPTIMIZE_LIGHT_SHARED_PARAMS = ['mu']  # list of parameters names to share between all lights
-OPTIMIZE_LIGHT_AREA_SAMPLING_LEVEL = [0, 0, 0]  # for each source. set to 0 to disable
+OPTIMIZE_LIGHT_SHARED_PARAMS = []  # list of parameters names to share between all lights
+OPTIMIZE_LIGHT_AREA_SAMPLING_LEVEL = [2, 2, 2]  # for each source. set to 0 to disable
 
 # Bidirectional Reflectance Distribution Function (BRDF) is estimated for the
 # whole calibration pattern bet but is not a useful parameter.
@@ -61,11 +61,12 @@ SAMPLING_ARGUMENTS = {
                       'margin': (5, 5),
                       'max_theta': 60.0,
                       # 'max_alpha': 60.0,
-                      'max_grid_count': (27, 36, 1)
+                      'max_grid_count': (27, 36, 1),
                     #   'repeat': [(-0.25, -0.25), (-0.25, 0), (-0.25, +0.25),
                     #              (0, -0.25),                 (0, +0.25),
                     #              (+0.25, -0.25), (+0.25, 0), (+0.25, +0.25)]
-                      }
+                      'level': 2,  # for multi-level sampling (0: disable, 1: 2x, 2: 4x, 3: 8x, ...)
+                    }
 
 # Frame selection parameters
 FRAME_COUNT = [2,4,8,12,8,4,2,1,1,1,1,1,1,1,1] # number of frames to use for calibration
